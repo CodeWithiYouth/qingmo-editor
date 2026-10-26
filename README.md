@@ -17,7 +17,8 @@
   - Lua 脚本扩展
   - 会话、书签、折叠、宏、导出 HTML/RTF/PDF 等
 - 窗口标题已改为 `GllEdit`
-- **尚未做**：菜单/对话框/图标/关于页的品牌化，UI 现代化，配置精简
+- 默认界面语言为简体中文（语言包 `config/locale.zh.properties`）
+- **尚未做**：图标、关于页正文、安装包品牌化，UI 现代化，配置精简
 
 ## 目录结构
 
@@ -25,7 +26,7 @@
 CMakeLists.txt              # 唯一的构建入口
 src/                        # SciTE 应用层（core，平台无关）
 src/win32/                  # Windows 壳层、资源、菜单、对话框
-config/                     # 全部 .properties 配置与 Lua 内嵌脚本
+config/                     # .properties 配置、中文语言包、Lua 内嵌脚本
 third_party/
   scintilla/                # 编辑内核 5.6.7
   lexilla/                  # 语法分析器 5.5.4
@@ -37,10 +38,14 @@ build/                      # 构建产物（已忽略）
 _download/                  # 上游原始压缩包/源码（已忽略，可删除）
 ```
 
-`src/` 和 `src/win32/` 来自 `scite/src`、`scite/win32`，保留了上游文件结构和版权头。当前只做了两处改动：
+`src/` 和 `src/win32/` 来自 `scite/src`、`scite/win32`，保留了上游文件结构和版权头。当前对上游的改动：
 
 1. `src/win32/SciTEWin.cxx`：`appName` 改为 `GllEdit`
-2. `src/win32/SciTERes.rc`：`Embedded.properties` 路径指向 `config/`
+2. `src/win32/SciTEWinDlg.cxx`：关于框标题改为 `GllEdit`
+3. `src/win32/SciTERes.rc`：`Embedded.properties` 指向 `config/`，关于框与版本资源改为 `GllEdit`
+4. `src/win32/SciTE.exe.manifest`：程序集名称改为 `GllEdit`
+5. `config/locale.zh.properties`：新增简体中文语言包
+6. `config/SciTEGlobal.properties`：默认加载中文语言包
 
 ## 构建
 
@@ -83,6 +88,18 @@ cmake --build build --target package --config Release
 # 输出：build\package\GllEdit.exe + 配置
 ```
 
+## 中文界面
+
+默认使用简体中文，语言包位于 `config/locale.zh.properties`。
+
+- 基于 SciTE 官方简体中文翻译（1.43–1.74），已补充并修订到 5.6.7
+- 文件编码 UTF-8（无 BOM），通过 `translation.encoding=UTF-8` 声明
+- 菜单、对话框、状态消息统一走 SciTE 的 `localiser`，不需要改动 C++
+- 切换回英文：把 `config/SciTEGlobal.properties` 中的
+  `locale.properties=locale.zh.properties` 注释掉，重新构建或手动复制配置到 exe 目录
+- 增加其他语言：复制 `locale.zh.properties` 为 `locale.xx.properties`，翻译右侧的值，
+  再把 `locale.properties` 指向新文件
+
 ## 关键设计
 
 - **单 exe、无运行时 DLL 依赖**：Scintilla、Lexilla、Lua 全部静态链接；只需要 VC 运行库（大多数 Windows 已安装）。
@@ -93,7 +110,7 @@ cmake --build build --target package --config Release
 
 ## 下一步建议
 
-1. **品牌化**：菜单、关于框、图标、版本号、窗口类名。
+1. **品牌化收尾**：图标、关于页正文、版本号、窗口类名。
 2. **配置精简**：只保留常用语言和高亮，减少首包体积和启动扫描。
 3. **现代 UI**：工具栏/标签页/状态栏重做，暗色主题默认化。
 4. **命令面板**：`Ctrl+Shift+P`，作为新功能的统一入口。

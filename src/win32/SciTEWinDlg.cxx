@@ -1776,7 +1776,7 @@ BOOL SciTEWin::AboutMessage(HWND hDlg, UINT message, WPARAM wParam) {
 			const LONG_PTR subclassedProc = ::SetWindowLongPtr(hwndCredits, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(CreditsWndProc));
 			::SetWindowLongPtr(hwndCredits, GWLP_USERDATA, subclassedProc);
 			ss.SetScintilla(hwndCredits);
-			SetAboutMessage(ss, staticBuild ? "Sc1  " : "SciTE");
+			SetAboutMessage(ss, staticBuild ? "GllEdit" : "GllEdit");
 		}
 		return TRUE;
 
