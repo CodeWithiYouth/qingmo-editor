@@ -103,6 +103,15 @@ void SciTEWin::SetStatusBarText(const char *s) {
 	SendPointer(HwndOf(wStatusBar), SB_SETTEXT, 0, barText.c_str());
 }
 
+namespace {
+
+// Reserve room on the right of every tab for the close button.
+GUI::gui_string TabTextWithCloseButton(const GUI::gui_string &text) {
+	return text + L"     ";
+}
+
+}
+
 void SciTEWin::UpdateTabs(const std::vector<GUI::gui_string> &tabNames) {
 	// Synchronize the tab control titles with those passed in.
 
@@ -132,7 +141,7 @@ void SciTEWin::UpdateTabs(const std::vector<GUI::gui_string> &tabNames) {
 		// Already deleted last tab, try to delete and insert the current last tab
 		TabCtrl_DeleteItem(HwndOf(wTabBar), tabChange - 1);
 
-		GUI::gui_string tabNameNext = tabNames.at(tabChange - 1);
+		GUI::gui_string tabNameNext = TabTextWithCloseButton(tabNames.at(tabChange - 1));
 		TCITEMW tie {};
 		tie.mask = TCIF_TEXT | TCIF_IMAGE;
 		tie.iImage = -1;
@@ -142,11 +151,12 @@ void SciTEWin::UpdateTabs(const std::vector<GUI::gui_string> &tabNames) {
 
 	while (tabNames.size() > tabNamesCurrent.size()) {
 		// Add new tabs
-		GUI::gui_string tabNameNext = tabNames.at(tabChange);
+		const GUI::gui_string tabNameNext = tabNames.at(tabChange);
+		GUI::gui_string tabNamePadded = TabTextWithCloseButton(tabNameNext);
 		TCITEMW tie {};
 		tie.mask = TCIF_TEXT | TCIF_IMAGE;
 		tie.iImage = -1;
-		tie.pszText = tabNameNext.data();
+		tie.pszText = tabNamePadded.data();
 		TabCtrl_InsertItem(HwndOf(wTabBar), tabChange, &tie);
 		tabNamesCurrent.insert(tabNamesCurrent.begin() + tabChange, tabNameNext);
 		tabChange++;
@@ -156,11 +166,12 @@ void SciTEWin::UpdateTabs(const std::vector<GUI::gui_string> &tabNames) {
 	while (tabChange < tabNames.size()) {
 		// Update tabs that are different
 		if (tabNames.at(tabChange) != tabNamesCurrent.at(tabChange)) {
-			GUI::gui_string tabNameCopy(tabNames.at(tabChange));
+			const GUI::gui_string tabNameCopy(tabNames.at(tabChange));
+			GUI::gui_string tabNamePadded = TabTextWithCloseButton(tabNameCopy);
 			TCITEMW tie {};
 			tie.mask = TCIF_TEXT | TCIF_IMAGE;
 			tie.iImage = -1;
-			tie.pszText = tabNameCopy.data();
+			tie.pszText = tabNamePadded.data();
 			TabCtrl_SetItem(HwndOf(wTabBar), tabChange, &tie);
 			tabNamesCurrent.at(tabChange) = tabNameCopy;
 		}
@@ -174,7 +185,7 @@ void SciTEWin::TabInsert(int index, const GUI::gui_char *title) {
 	TCITEMW tie {};
 	tie.mask = TCIF_TEXT | TCIF_IMAGE;
 	tie.iImage = -1;
-	GUI::gui_string titleCopy(title);
+	GUI::gui_string titleCopy = TabTextWithCloseButton(title);
 	tie.pszText = titleCopy.data();
 	TabCtrl_InsertItem(HwndOf(wTabBar), index, &tie);
 }
@@ -198,6 +209,89 @@ int TabAtPoint(HWND hWnd, GUI::Point pt) noexcept {
 	thti.pt.y = pt.y;
 	thti.flags = 0;
 	return TabCtrl_HitTest(hWnd, &thti);
+}
+
+int TabBarDpi(HWND hWnd) noexcept {
+	HDC hDC = ::GetDC(hWnd);
+	if (!hDC) {
+		return 96;
+	}
+	const int dpi = ::GetDeviceCaps(hDC, LOGPIXELSX);
+	::ReleaseDC(hWnd, hDC);
+	return dpi > 0 ? dpi : 96;
+}
+
+bool CloseButtonRect(HWND hWnd, int tab, RECT &button, int dpi) noexcept {
+	RECT tabRect {};
+	if (tab < 0 || !TabCtrl_GetItemRect(hWnd, tab, &tabRect)) {
+		return false;
+	}
+	const int box = ::MulDiv(18, dpi, 96);
+	const int margin = ::MulDiv(4, dpi, 96);
+	const int top = tabRect.top + ((tabRect.bottom - tabRect.top) - box) / 2;
+	button.left = tabRect.right - margin - box;
+	button.right = tabRect.right - margin;
+	button.top = top;
+	button.bottom = top + box;
+	return true;
+}
+
+bool IsCloseButtonHit(HWND hWnd, int tab, GUI::Point pt, int dpi) noexcept {
+	RECT button {};
+	if (!CloseButtonRect(hWnd, tab, button, dpi)) {
+		return false;
+	}
+	return pt.x >= button.left && pt.x < button.right &&
+	       pt.y >= button.top && pt.y < button.bottom;
+}
+
+void DrawCloseButton(HDC hDC, const RECT &button, bool hot, bool selected, int dpi);
+
+void DrawCloseButtons(HWND hWnd, HDC hDC, int hoverTab) {
+	const int tabCount = TabCtrl_GetItemCount(hWnd);
+	if (tabCount <= 0) {
+		return;
+	}
+	const int dpi = TabBarDpi(hWnd);
+	const int selected = TabCtrl_GetCurSel(hWnd);
+	for (int tab = 0; tab < tabCount; ++tab) {
+		RECT button {};
+		if (CloseButtonRect(hWnd, tab, button, dpi)) {
+			DrawCloseButton(hDC, button, tab == hoverTab, tab == selected, dpi);
+		}
+	}
+}
+
+void DrawCloseButton(HDC hDC, const RECT &button, bool hot, bool selected, int dpi) {
+	const COLORREF colour = hot ? RGB(210, 40, 40) :
+		(selected ? ::GetSysColor(COLOR_BTNTEXT) : ::GetSysColor(COLOR_GRAYTEXT));
+
+	if (hot) {
+		HBRUSH brush = ::CreateSolidBrush(RGB(255, 228, 228));
+		HPEN border = ::CreatePen(PS_SOLID, 1, RGB(240, 180, 180));
+		HBRUSH oldBrush = SelectBrush(hDC, brush);
+		HPEN oldPen = SelectPen(hDC, border);
+		::RoundRect(hDC, button.left, button.top, button.right, button.bottom, 6, 6);
+		SelectPen(hDC, oldPen);
+		SelectBrush(hDC, oldBrush);
+		DeletePen(border);
+		DeleteBrush(brush);
+	}
+
+	const int inset = ::MulDiv(5, dpi, 96);
+	const int left = button.left + inset;
+	const int right = button.right - inset;
+	const int top = button.top + inset;
+	const int bottom = button.bottom - inset;
+	const int width = ::MulDiv(1, dpi, 96);
+	HPEN pen = ::CreatePen(PS_SOLID, width > 0 ? width : 1, colour);
+	HPEN oldPen = SelectPen(hDC, pen);
+	::MoveToEx(hDC, left, top, nullptr);
+	::LineTo(hDC, right, bottom);
+	::MoveToEx(hDC, right, top, nullptr);
+	::LineTo(hDC, left, bottom);
+	SelectPen(hDC, oldPen);
+	DeletePen(pen);
 }
 
 }
@@ -723,11 +817,31 @@ LRESULT CALLBACK TabWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lPar
 	static bool bDragBegin = false;
 	static int iDraggingTab = -1;
 	static int iLastClickTab = -1;
+	static int iCloseClickTab = -1;
+	static int iHoverCloseTab = -1;
+	static bool bTrackingLeave = false;
 	static HWND hwndLastFocus {};
 
 	if (iMessage == WM_LBUTTONDOWN) {
 		const GUI::Point pt = PointFromLong(lParam);
-		iLastClickTab = TabAtPoint(hWnd, pt);
+		const int tab = TabAtPoint(hWnd, pt);
+		const int dpi = TabBarDpi(hWnd);
+		if (tab >= 0 && IsCloseButtonHit(hWnd, tab, pt, dpi)) {
+			iCloseClickTab = tab;
+			return 0;
+		}
+		iCloseClickTab = -1;
+		iLastClickTab = tab;
+	} else if (iMessage == WM_LBUTTONUP && iCloseClickTab >= 0) {
+		const GUI::Point pt = PointFromLong(lParam);
+		const int tab = TabAtPoint(hWnd, pt);
+		const int dpi = TabBarDpi(hWnd);
+		if (tab == iCloseClickTab && IsCloseButtonHit(hWnd, tab, pt, dpi)) {
+			::SendMessage(::GetParent(hWnd), WM_COMMAND, IDC_TABCLOSE, tab);
+		}
+		iCloseClickTab = -1;
+		iLastClickTab = -1;
+		return 0;
 	}
 
 	LRESULT retResult;
@@ -784,11 +898,43 @@ LRESULT CALLBACK TabWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lPar
 		}
 		break;
 
+	case WM_MOUSELEAVE:
+		bTrackingLeave = false;
+		if (iHoverCloseTab >= 0) {
+			RECT rect {};
+			if (TabCtrl_GetItemRect(hWnd, iHoverCloseTab, &rect)) {
+				::InvalidateRect(hWnd, &rect, FALSE);
+			}
+			iHoverCloseTab = -1;
+		}
+		break;
+
 	case WM_MOUSEMOVE: {
 
 			const GUI::Point pt = PointFromLong(lParam);
 			const int tab = TabAtPoint(hWnd, pt);
 			const int tabcount = TabCtrl_GetItemCount(hWnd);
+
+			const int dpi = TabBarDpi(hWnd);
+			const bool overClose = tab >= 0 && IsCloseButtonHit(hWnd, tab, pt, dpi);
+			const int newHover = bDragBegin ? -1 : (overClose ? tab : -1);
+			if (newHover != iHoverCloseTab) {
+				RECT oldRect {};
+				if (iHoverCloseTab >= 0 && TabCtrl_GetItemRect(hWnd, iHoverCloseTab, &oldRect)) {
+					::InvalidateRect(hWnd, &oldRect, FALSE);
+				}
+				iHoverCloseTab = newHover;
+				RECT newRect {};
+				if (iHoverCloseTab >= 0 && TabCtrl_GetItemRect(hWnd, iHoverCloseTab, &newRect)) {
+					::InvalidateRect(hWnd, &newRect, FALSE);
+				}
+			}
+			if (iHoverCloseTab >= 0 && !bTrackingLeave) {
+				TRACKMOUSEEVENT tme { sizeof(tme), TME_LEAVE, hWnd, 0 };
+				if (::TrackMouseEvent(&tme)) {
+					bTrackingLeave = true;
+				}
+			}
 
 			if (wParam == MK_LBUTTON &&
 					tabcount > 1 &&
@@ -871,6 +1017,17 @@ LRESULT CALLBACK TabWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lPar
 					}
 				}
 			}
+			HDC hDC = ::GetDC(hWnd);
+			if (hDC) {
+				DrawCloseButtons(hWnd, hDC, iHoverCloseTab);
+				::ReleaseDC(hWnd, hDC);
+			}
+		}
+		break;
+
+	case WM_PRINTCLIENT:
+		if (wParam != 0) {
+			DrawCloseButtons(hWnd, reinterpret_cast<HDC>(wParam), iHoverCloseTab);
 		}
 		break;
 	}

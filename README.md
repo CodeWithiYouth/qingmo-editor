@@ -19,6 +19,7 @@
 - 窗口标题已改为 `轻墨`
 - 默认界面语言为简体中文（语言包 `config/locale.zh.properties`）
 - 内置 JSON 格式化（编辑 → 格式化 JSON，`Ctrl+Alt+J`）
+- 标签页右侧带 **X 关闭按钮**，悬停高亮，点击关闭对应标签
 - 新图标：墨滴 + 文本光标（`src/win32/QingMo.ico`，16–256 多尺寸）
 - **尚未做**：关于页正文、安装包品牌化，UI 现代化，配置精简
 
@@ -133,6 +134,16 @@ ctest --test-dir build -C Release --output-on-failure
 ```
 
 也可以直接运行 `build\Release\json_formatter_test.exe`。
+
+## 标签页
+
+- 每个标签右侧显示一个 **X** 关闭图标
+- 鼠标移上去时图标变红并出现浅红圆角底
+- 左键点击关闭对应标签；中键关闭标签仍然保留
+- 使用原生 `SysTabControl32` + 自绘图标，保留系统标签外观
+- 图标尺寸和点击区域按 DPI 缩放，支持高 DPI
+
+实现在 `src/win32/SciTEWinBar.cxx` 的 `TabWndProc`、`DrawCloseButtons` 和 `CloseButtonRect`。
 
 ## 图标
 
