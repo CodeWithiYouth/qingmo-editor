@@ -4,10 +4,10 @@
 <assemblyIdentity
     version="1.0.0.0"
     processorArchitecture="*"
-    name="GllEdit"
+    name="QingMo"
     type="win32"
 />
-<description>GllEdit</description>
+<description>QingMo</description>
 <asmv3:application>
     <asmv3:windowsSettings xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">
         <dpiAware>true</dpiAware>

@@ -1,4 +1,4 @@
-# GllEdit
+# 轻墨 QingMo
 
 基于 **SciTE 5.6.7** 的轻量 Windows 文本编辑器骨架。
 
@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-- 单个静态链接的 `GllEdit.exe`，约 **3.6 MB**
+- 单个静态链接的 `QingMo.exe`，约 **3.6 MB**
 - 已内置 Scintilla 5.6.7、Lexilla 5.5.4、Lua 5.3.4
 - SciTE 原有能力全部保留：
   - 多标签、分屏、项目/目录打开
@@ -16,9 +16,10 @@
   - 换行符 LF / CRLF / CR
   - Lua 脚本扩展
   - 会话、书签、折叠、宏、导出 HTML/RTF/PDF 等
-- 窗口标题已改为 `GllEdit`
+- 窗口标题已改为 `轻墨`
 - 默认界面语言为简体中文（语言包 `config/locale.zh.properties`）
-- **尚未做**：图标、关于页正文、安装包品牌化，UI 现代化，配置精简
+- 新图标：墨滴 + 文本光标（`src/win32/QingMo.ico`，16–256 多尺寸）
+- **尚未做**：关于页正文、安装包品牌化，UI 现代化，配置精简
 
 ## 目录结构
 
@@ -34,16 +35,17 @@ third_party/
 scripts/
   build.ps1                 # 一键配置 + 编译
   run.ps1                   # 运行已编译的程序
+  make_icon.py              # 重新生成应用图标（Pillow）
 build/                      # 构建产物（已忽略）
 _download/                  # 上游原始压缩包/源码（已忽略，可删除）
 ```
 
 `src/` 和 `src/win32/` 来自 `scite/src`、`scite/win32`，保留了上游文件结构和版权头。当前对上游的改动：
 
-1. `src/win32/SciTEWin.cxx`：`appName` 改为 `GllEdit`
-2. `src/win32/SciTEWinDlg.cxx`：关于框标题改为 `GllEdit`
-3. `src/win32/SciTERes.rc`：`Embedded.properties` 指向 `config/`，关于框与版本资源改为 `GllEdit`
-4. `src/win32/SciTE.exe.manifest`：程序集名称改为 `GllEdit`
+1. `src/win32/SciTEWin.cxx`：`appName` 改为 `轻墨`
+2. `src/win32/SciTEWinDlg.cxx`：关于框标题改为 `轻墨`
+3. `src/win32/SciTERes.rc`：`Embedded.properties` 指向 `config/`，关于框与版本资源改为 `轻墨`
+4. `src/win32/QingMo.exe.manifest`：程序集名称改为 `QingMo`
 5. `config/locale.zh.properties`：新增简体中文语言包
 6. `config/SciTEGlobal.properties`：默认加载中文语言包
 
@@ -67,7 +69,7 @@ cmake --build build --config Release --parallel
 产物：
 
 ```
-build\bin\GllEdit.exe
+build\bin\QingMo.exe
 build\bin\*.properties
 ```
 
@@ -78,14 +80,14 @@ build\bin\*.properties
 ```powershell
 .\scripts\run.ps1
 # 或
-.\build\bin\GllEdit.exe
+.\build\bin\QingMo.exe
 ```
 
 打包成一个可分发的文件夹：
 
 ```powershell
 cmake --build build --target package --config Release
-# 输出：build\package\GllEdit.exe + 配置
+# 输出：build\package\QingMo.exe + 配置
 ```
 
 ## 中文界面
@@ -100,6 +102,13 @@ cmake --build build --target package --config Release
 - 增加其他语言：复制 `locale.zh.properties` 为 `locale.xx.properties`，翻译右侧的值，
   再把 `locale.properties` 指向新文件
 
+## 图标
+
+- 设计：深色圆角底 + 白色墨滴 + 青色文本光标
+- 源脚本：`scripts/make_icon.py`（Pillow）
+- 生成物：`src/win32/QingMo.ico`、`src/win32/QingMoBusy.ico`、`resources/QingMo-512.png`
+- 重新生成：`python scripts/make_icon.py`
+
 ## 关键设计
 
 - **单 exe、无运行时 DLL 依赖**：Scintilla、Lexilla、Lua 全部静态链接；只需要 VC 运行库（大多数 Windows 已安装）。
@@ -110,7 +119,7 @@ cmake --build build --target package --config Release
 
 ## 下一步建议
 
-1. **品牌化收尾**：图标、关于页正文、版本号、窗口类名。
+1. **品牌化收尾**：关于页正文、版本号、窗口类名、安装包图标。
 2. **配置精简**：只保留常用语言和高亮，减少首包体积和启动扫描。
 3. **现代 UI**：工具栏/标签页/状态栏重做，暗色主题默认化。
 4. **命令面板**：`Ctrl+Shift+P`，作为新功能的统一入口。

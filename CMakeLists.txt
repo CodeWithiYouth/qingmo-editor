@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(GllEdit
+project(QingMo
     VERSION 0.1.0
     DESCRIPTION "A lightweight text editor built on the SciTE/Scintilla skeleton"
     LANGUAGES C CXX RC)
 
-set(APP_NAME "GllEdit" CACHE STRING "Executable / product display name")
+set(APP_NAME "QingMo" CACHE STRING "Executable / product display name")
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -90,13 +90,13 @@ target_compile_definitions(lua_obj PRIVATE
 file(GLOB APP_CORE CONFIGURE_DEPENDS "${APP_INCLUDE}/*.cxx")
 file(GLOB APP_WIN  CONFIGURE_DEPENDS "${APP_INCLUDE}/win32/*.cxx")
 
-add_executable(glledit WIN32
+add_executable(qingmo WIN32
     ${APP_CORE}
     ${APP_WIN}
     "${APP_INCLUDE}/win32/SciTERes.rc"
 )
 
-set_target_properties(glledit PROPERTIES
+set_target_properties(qingmo PROPERTIES
     OUTPUT_NAME "${APP_NAME}"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin"
@@ -105,23 +105,23 @@ set_target_properties(glledit PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_BINARY_DIR}/bin"
 )
 
-target_include_directories(glledit PRIVATE
+target_include_directories(qingmo PRIVATE
     "${APP_INCLUDE}"
     "${APP_INCLUDE}/win32"
 )
-target_compile_definitions(glledit PRIVATE
+target_compile_definitions(qingmo PRIVATE
     WIN32 _WINDOWS UNICODE _UNICODE STATIC_BUILD
     _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE _SCL_SECURE_NO_WARNINGS
     "LUA_USER_H=\"scite_lua_win.h\""
 )
-target_link_libraries(glledit PRIVATE
+target_link_libraries(qingmo PRIVATE
     scintilla_obj
     lexilla_obj
     lua_obj
     gdi32 comdlg32 comctl32 advapi32 imm32 shell32 ole32 oleaut32 uxtheme user32
 )
-target_link_options(glledit PRIVATE
-    # SciTERes.rc embeds src/win32/SciTE.exe.manifest as RT_MANIFEST.
+target_link_options(qingmo PRIVATE
+    # SciTERes.rc embeds src/win32/QingMo.exe.manifest as RT_MANIFEST.
     # Disable the linker-generated manifest so it is not embedded twice.
     /MANIFEST:NO
     $<$<CONFIG:Release>:/OPT:ICF>
@@ -130,10 +130,10 @@ target_link_options(glledit PRIVATE
 )
 
 # SciTE reads its properties from the executable directory. Keep it portable.
-add_custom_command(TARGET glledit POST_BUILD
+add_custom_command(TARGET qingmo POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/config"
-        "$<TARGET_FILE_DIR:glledit>"
+        "$<TARGET_FILE_DIR:qingmo>"
     COMMENT "Copying SciTE configuration"
     VERBATIM
 )
@@ -144,12 +144,12 @@ add_custom_command(TARGET glledit POST_BUILD
 add_custom_target(package
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/package"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:glledit>"
+        "$<TARGET_FILE:qingmo>"
         "${CMAKE_BINARY_DIR}/package/"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/config"
         "${CMAKE_BINARY_DIR}/package"
-    DEPENDS glledit
+    DEPENDS qingmo
     COMMENT "Staging ${APP_NAME} into build/package"
     VERBATIM
 )

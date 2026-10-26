@@ -55,12 +55,12 @@
 
 #endif
 
-// GllEdit fork: name shown in the window title.
+// QingMo: name shown in the window title.
 // Kept as a single definition so a future rename only touches this file.
 #ifdef STATIC_BUILD
-const GUI::gui_char appName[] = GUI_TEXT("GllEdit");
+const GUI::gui_char appName[] = GUI_TEXT("轻墨");
 #else
-const GUI::gui_char appName[] = GUI_TEXT("GllEdit");
+const GUI::gui_char appName[] = GUI_TEXT("轻墨");
 #endif
 
 namespace {
@@ -350,7 +350,7 @@ uintptr_t SciTEWin::GetInstance() noexcept {
 }
 
 void SciTEWin::Register(HINSTANCE hInstance_) noexcept {
-	const WCHAR resourceName[] = L"SciTE";
+	const WCHAR resourceName[] = L"QingMo";
 
 	hInstance = hInstance_;
 
@@ -1886,8 +1886,8 @@ void SciTEWin::MinimizeToTray() noexcept {
 	nid.uID = 1;
 	nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
 	nid.uCallbackMessage = SCITE_TRAY;
-	nid.hIcon = IconLoad(L"SCITE");
-	StringCopy(nid.szTip, L"SciTE");
+	nid.hIcon = IconLoad(L"QingMo");
+	StringCopy(nid.szTip, L"轻墨");
 	::ShowWindow(MainHWND(), SW_MINIMIZE);
 	if (::Shell_NotifyIcon(NIM_ADD, &nid)) {
 		::ShowWindow(MainHWND(), SW_HIDE);

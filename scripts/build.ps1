@@ -1,10 +1,11 @@
-# Build GllEdit with the Visual Studio generator.
+# Build QingMo with the Visual Studio generator.
 # Usage:  .\scripts\build.ps1
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 $cmake = $null
 $generator = $null
+$appName = "QingMo"
 
 # Prefer the CMake bundled with Visual Studio so no global install is required.
 $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
@@ -36,7 +37,7 @@ if (-not $cmake) {
     throw "CMake not found. Install 'Desktop development with C++' in Visual Studio, or install CMake 3.25+."
 }
 
-$configureArgs = @("-S", $root, "-B", "$root\build")
+$configureArgs = @("-S", $root, "-B", "$root\build", "-DAPP_NAME=$appName")
 if ($generator) {
     $configureArgs += @("-G", $generator, "-A", "x64")
 }
@@ -49,4 +50,4 @@ if ($LASTEXITCODE -ne 0) { throw "CMake configure failed." }
 if ($LASTEXITCODE -ne 0) { throw "Build failed." }
 
 Write-Host ""
-Write-Host "Built: $root\build\bin\GllEdit.exe" -ForegroundColor Green
+Write-Host "Built: $root\build\bin\$appName.exe" -ForegroundColor Green
