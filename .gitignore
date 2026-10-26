@@ -1,0 +1,12 @@
+# Build output
+build/
+out/
+.vs/
+*.user
+*.suo
+
+# Upstream source snapshots used during the initial import
+_download/
+
+# Local editor state
+*.log
