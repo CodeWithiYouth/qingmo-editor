@@ -97,6 +97,29 @@ void testStringsAndUnicode() {
 		"escapes: preserved");
 }
 
+void testDoubleEncoded() {
+	const auto result = JsonFormatter::Format(
+		"\"{\\\"a\\\":1,\\\"b\\\":[true],\\\"name\\\":\\\"\\u8f7b\\u58a8\\\"}\"", options());
+	expect(result.ok, "double encoded: parses");
+	expect(result.unwrappedString, "double encoded: unwrapped");
+	expectEqual(result.text,
+		"{\n"
+		"  \"a\": 1,\n"
+		"  \"b\": [\n"
+		"    true\n"
+		"  ],\n"
+		"  \"name\": \"轻墨\"\n"
+		"}",
+		"double encoded: output");
+
+	auto noUnwrap = options();
+	noUnwrap.unwrapString = false;
+	const auto raw = JsonFormatter::Format("\"{\\\"a\\\":1}\"", noUnwrap);
+	expect(raw.ok, "double encoded disabled: parses");
+	expect(!raw.unwrappedString, "double encoded disabled: not unwrapped");
+	expectEqual(raw.text, "\"{\\\"a\\\":1}\"", "double encoded disabled: output");
+}
+
 void testLineEndingsAndBom() {
 	const auto trailing = JsonFormatter::Format("{\"a\":1}\n", options(2, "\n", true));
 	expect(trailing.ok, "trailing newline: parses");
@@ -160,6 +183,7 @@ int main() {
 	testPrettyPrint();
 	testIndentAndNumbers();
 	testStringsAndUnicode();
+	testDoubleEncoded();
 	testLineEndingsAndBom();
 	testErrors();
 

@@ -3118,6 +3118,7 @@ void SciTEBase::FormatJSON() {
 
 	JsonFormatter::Options options;
 	options.indent = std::clamp(props.GetInt("json.format.indent", 2), 0, 8);
+	options.unwrapString = props.GetInt("json.format.unwrap.string", 1) != 0;
 	switch (wEditor.EOLMode()) {
 	case Scintilla::EndOfLine::CrLf:
 		options.eol = "\r\n";
@@ -3163,6 +3164,9 @@ void SciTEBase::FormatJSON() {
 	}
 	wEditor.ScrollCaret();
 	WindowSetFocus(wEditor);
+	if (result.unwrappedString) {
+		SetStatusBarText("已解包外层 JSON 字符串并格式化");
+	}
 }
 
 void SciTEBase::MenuCommand(int cmdID, int source) {

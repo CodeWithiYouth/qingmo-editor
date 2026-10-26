@@ -13,10 +13,12 @@ struct Options {
 	int indent = 2;                  // spaces per nesting level, 0..8
 	std::string eol = "\n";          // output line ending
 	bool keepTrailingNewline = true; // preserve a final newline from the input
+	bool unwrapString = true;        // unwrap a JSON string that contains JSON
 };
 
 struct Result {
 	bool ok = false;
+	bool unwrappedString = false; // the outer JSON string was decoded
 	std::string text;
 	std::string error;
 	std::size_t position = 0; // byte offset where parsing stopped

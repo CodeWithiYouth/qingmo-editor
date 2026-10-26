@@ -19,6 +19,146 @@ bool isValueDelimiter(char c) noexcept {
 	return isJsonWhitespace(c) || c == ',' || c == ']' || c == '}';
 }
 
+void appendUtf8(std::string &out, unsigned int codePoint) {
+	if (codePoint <= 0x7F) {
+		out.push_back(static_cast<char>(codePoint));
+	} else if (codePoint <= 0x7FF) {
+		out.push_back(static_cast<char>(0xC0 | (codePoint >> 6)));
+		out.push_back(static_cast<char>(0x80 | (codePoint & 0x3F)));
+	} else if (codePoint <= 0xFFFF) {
+		out.push_back(static_cast<char>(0xE0 | (codePoint >> 12)));
+		out.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3F)));
+		out.push_back(static_cast<char>(0x80 | (codePoint & 0x3F)));
+	} else {
+		out.push_back(static_cast<char>(0xF0 | (codePoint >> 18)));
+		out.push_back(static_cast<char>(0x80 | ((codePoint >> 12) & 0x3F)));
+		out.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3F)));
+		out.push_back(static_cast<char>(0x80 | (codePoint & 0x3F)));
+	}
+}
+
+// Decodes a document that consists of a single JSON string. Returns false when
+// the document is not a string, is malformed, or has trailing content.
+bool decodeRootJsonString(std::string_view src, std::string &out) {
+	std::size_t pos = 0;
+	if (src.starts_with("\xEF\xBB\xBF")) {
+		pos = 3;
+	}
+	while (pos < src.size() && isJsonWhitespace(src[pos])) {
+		++pos;
+	}
+	if (pos >= src.size() || src[pos] != '"') {
+		return false;
+	}
+	++pos;
+	out.clear();
+
+	const auto hex4 = [&src](std::size_t at) -> int {
+		int value = 0;
+		for (int i = 0; i < 4; ++i) {
+			const char c = src[at + i];
+			value <<= 4;
+			if (c >= '0' && c <= '9') {
+				value |= c - '0';
+			} else if (c >= 'a' && c <= 'f') {
+				value |= c - 'a' + 10;
+			} else if (c >= 'A' && c <= 'F') {
+				value |= c - 'A' + 10;
+			} else {
+				return -1;
+			}
+		}
+		return value;
+	};
+
+	while (pos < src.size()) {
+		const unsigned char ch = static_cast<unsigned char>(src[pos]);
+		if (ch == '"') {
+			++pos;
+			while (pos < src.size() && isJsonWhitespace(src[pos])) {
+				++pos;
+			}
+			return pos == src.size();
+		}
+		if (ch < 0x20) {
+			return false;
+		}
+		if (ch != '\\') {
+			out.push_back(static_cast<char>(ch));
+			++pos;
+			continue;
+		}
+
+		++pos;
+		if (pos >= src.size()) {
+			return false;
+		}
+		switch (src[pos]) {
+		case '"':
+			out.push_back('"');
+			++pos;
+			break;
+		case '\\':
+			out.push_back('\\');
+			++pos;
+			break;
+		case '/':
+			out.push_back('/');
+			++pos;
+			break;
+		case 'b':
+			out.push_back('\b');
+			++pos;
+			break;
+		case 'f':
+			out.push_back('\f');
+			++pos;
+			break;
+		case 'n':
+			out.push_back('\n');
+			++pos;
+			break;
+		case 'r':
+			out.push_back('\r');
+			++pos;
+			break;
+		case 't':
+			out.push_back('\t');
+			++pos;
+			break;
+		case 'u': {
+			if (pos + 5 > src.size()) {
+				return false;
+			}
+			int codePoint = hex4(pos + 1);
+			if (codePoint < 0) {
+				return false;
+			}
+			pos += 5;
+			if (codePoint >= 0xD800 && codePoint <= 0xDBFF) {
+				if (pos + 6 <= src.size() && src[pos] == '\\' && src[pos + 1] == 'u') {
+					const int low = hex4(pos + 2);
+					if (low < 0xDC00 || low > 0xDFFF) {
+						return false;
+					}
+					pos += 6;
+					codePoint = 0x10000 + ((codePoint - 0xD800) << 10) + (low - 0xDC00);
+				} else {
+					return false;
+				}
+			} else if (codePoint >= 0xDC00 && codePoint <= 0xDFFF) {
+				return false;
+			}
+			appendUtf8(out, static_cast<unsigned int>(codePoint));
+			break;
+		}
+		default:
+			return false;
+		}
+	}
+	return false;
+}
+
 class Parser {
 public:
 	Parser(std::string_view source, const JsonFormatter::Options &options) noexcept
@@ -363,6 +503,27 @@ JsonFormatter::Result JsonFormatter::Format(std::string_view source, const Optio
 	if (safe.eol.empty()) {
 		safe.eol = "\n";
 	}
+
 	Parser parser(source, safe);
-	return parser.Parse();
+	Result outer = parser.Parse();
+	if (!outer.ok || !safe.unwrapString) {
+		return outer;
+	}
+
+	std::string inner;
+	if (!decodeRootJsonString(source, inner)) {
+		return outer;
+	}
+
+	// Only unwrap when the decoded text is valid JSON; otherwise keep the
+	// original string value untouched.
+	Options innerOptions = safe;
+	innerOptions.unwrapString = false;
+	Parser innerParser(inner, innerOptions);
+	Result innerResult = innerParser.Parse();
+	if (!innerResult.ok) {
+		return outer;
+	}
+	innerResult.unwrappedString = true;
+	return innerResult;
 }

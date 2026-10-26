@@ -113,6 +113,8 @@ cmake --build build --target package --config Release
   ```
   允许 0–8，0 表示只换行不缩进
 - 严格 JSON：不支持 `//`、`/* */` 注释和尾随逗号；解析失败会提示行列，文档保持不变
+- 双重编码的接口响应（整个文件是一个 JSON 字符串，内部才是 JSON）会自动解包一层再格式化；
+  可用 `json.format.unwrap.string=0` 关闭
 - 整段替换合并为**一步撤销**，`Ctrl+Z` 可以直接回到格式化前
 - 字符串转义、数字字面量（包括 `-3.5e2`）和中文原样保留
 - 实现在 `src/JsonFormatter.cxx`，单遍递归下降解析，不依赖第三方 JSON 库
