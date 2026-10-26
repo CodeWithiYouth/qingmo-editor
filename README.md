@@ -18,6 +18,7 @@
   - 会话、书签、折叠、宏、导出 HTML/RTF/PDF 等
 - 窗口标题已改为 `轻墨`
 - 默认界面语言为简体中文（语言包 `config/locale.zh.properties`）
+- 内置 JSON 格式化（编辑 → 格式化 JSON，`Ctrl+Alt+J`）
 - 新图标：墨滴 + 文本光标（`src/win32/QingMo.ico`，16–256 多尺寸）
 - **尚未做**：关于页正文、安装包品牌化，UI 现代化，配置精简
 
@@ -102,6 +103,32 @@ cmake --build build --target package --config Release
 - 增加其他语言：复制 `locale.zh.properties` 为 `locale.xx.properties`，翻译右侧的值，
   再把 `locale.properties` 指向新文件
 
+## JSON 格式化
+
+- 位置：**编辑 → 格式化 JSON**，快捷键 `Ctrl+Alt+J`
+- 有选区时只格式化选区，否则格式化整个文档
+- 默认 2 空格缩进，可在 `config/SciTEGlobal.properties` 中修改：
+  ```properties
+  json.format.indent=4
+  ```
+  允许 0–8，0 表示只换行不缩进
+- 严格 JSON：不支持 `//`、`/* */` 注释和尾随逗号；解析失败会提示行列，文档保持不变
+- 整段替换合并为**一步撤销**，`Ctrl+Z` 可以直接回到格式化前
+- 字符串转义、数字字面量（包括 `-3.5e2`）和中文原样保留
+- 实现在 `src/JsonFormatter.cxx`，单遍递归下降解析，不依赖第三方 JSON 库
+
+## 测试
+
+JSON 解析器带有独立单元测试，默认不编译：
+
+```powershell
+cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -DQINGMO_BUILD_TESTS=ON
+cmake --build build --config Release --parallel
+ctest --test-dir build -C Release --output-on-failure
+```
+
+也可以直接运行 `build\Release\json_formatter_test.exe`。
+
 ## 图标
 
 - 设计：深色圆角底 + 白色墨滴 + 青色文本光标
@@ -116,6 +143,7 @@ cmake --build build --target package --config Release
 - **保留 SciTE 的 properties 体系**：`SciTEGlobal.properties` 是总入口，语言配置按需 `import`，新增语言不需要改 C++。
 - **Lua 作为扩展层**：后续可以把“命令面板、插件、宏”优先做成 Lua 扩展，减少 C++ 改动。
 - **编辑内核不碰**：文本缓冲、编码、IME、绘制、滚动都由 Scintilla 负责，这是“轻量且稳定”的基础。
+- **JSON 格式化自研**：单遍解析 + 直接序列化，保留原始字符串和数字字面量，不引入第三方 JSON 库。
 
 ## 下一步建议
 
@@ -125,6 +153,7 @@ cmake --build build --target package --config Release
 4. **命令面板**：`Ctrl+Shift+P`，作为新功能的统一入口。
 5. **大文件模式**：只读 + 分块加载 + 关闭高亮，补齐 SciTE 的短板。
 6. **设置界面**：把 properties 包装成可视化设置，不再要求用户手改配置文件。
+7. **JSON 增强**：JSONC 注释、键排序、压缩输出、格式化选中片段。
 
 ## 上游与许可证
 

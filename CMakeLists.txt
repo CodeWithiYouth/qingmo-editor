@@ -139,6 +139,22 @@ add_custom_command(TARGET qingmo POST_BUILD
 )
 
 # ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+option(QINGMO_BUILD_TESTS "Build QingMo unit tests" OFF)
+if(QINGMO_BUILD_TESTS)
+    enable_testing()
+    add_executable(json_formatter_test
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/JsonFormatterTest.cxx"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/JsonFormatter.cxx"
+    )
+    target_include_directories(json_formatter_test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    add_test(NAME json_formatter COMMAND json_formatter_test)
+endif()
+
+# ---------------------------------------------------------------------------
 # Convenience target: build and stage a distributable folder
 # ---------------------------------------------------------------------------
 add_custom_target(package

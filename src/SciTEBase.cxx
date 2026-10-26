@@ -39,6 +39,7 @@
 #include "ScintillaTypes.h"
 #include "ScintillaMessages.h"
 #include "ScintillaCall.h"
+#include "ScintillaStructures.h"
 #include "ILoader.h"
 #include "Scintilla.h"
 #include "SciLexer.h"
@@ -51,6 +52,7 @@
 #include "StyleDefinition.h"
 #include "PropSetFile.h"
 #include "StyleWriter.h"
+#include "JsonFormatter.h"
 #include "Extender.h"
 #include "SciTE.h"
 #include "JobQueue.h"
@@ -3097,6 +3099,72 @@ void SciTEBase::SetLineNumberWidth() {
 	}
 }
 
+void SciTEBase::FormatJSON() {
+	const SA::Position selectionStart = wEditor.SelectionStart();
+	const SA::Position selectionEnd = wEditor.SelectionEnd();
+	const bool hasSelection = selectionStart != selectionEnd;
+	const SA::Position from = hasSelection ? std::min(selectionStart, selectionEnd) : 0;
+	const SA::Position to = hasSelection ? std::max(selectionStart, selectionEnd) : wEditor.Length();
+
+	std::string source;
+	if (to > from) {
+		source.resize(static_cast<std::size_t>(to - from));
+		Scintilla::TextRangeFull range{};
+		range.chrg.cpMin = from;
+		range.chrg.cpMax = to;
+		range.lpstrText = source.data();
+		wEditor.GetTextRangeFull(&range);
+	}
+
+	JsonFormatter::Options options;
+	options.indent = std::clamp(props.GetInt("json.format.indent", 2), 0, 8);
+	switch (wEditor.EOLMode()) {
+	case Scintilla::EndOfLine::CrLf:
+		options.eol = "\r\n";
+		break;
+	case Scintilla::EndOfLine::Cr:
+		options.eol = "\r";
+		break;
+	case Scintilla::EndOfLine::Lf:
+	default:
+		options.eol = "\n";
+		break;
+	}
+
+	const JsonFormatter::Result result = JsonFormatter::Format(source, options);
+	if (!result.ok) {
+		std::string message = "JSON 格式化失败";
+		message += "（第 " + std::to_string(result.line) + " 行，第 " +
+			   std::to_string(result.column) + " 列）：\n";
+		message += result.error;
+		WindowMessageBox(wSciTE, GUI::StringFromUTF8(message));
+		return;
+	}
+
+	if (result.text == source) {
+		WindowSetFocus(wEditor);
+		return;
+	}
+
+	const SA::Position oldCaret = wEditor.CurrentPos();
+	wEditor.BeginUndoAction();
+	wEditor.SetTargetStart(from);
+	wEditor.SetTargetEnd(to);
+	wEditor.ReplaceTarget(result.text);
+	wEditor.EndUndoAction();
+
+	if (hasSelection) {
+		const SA::Position newEnd = from + static_cast<SA::Position>(result.text.size());
+		wEditor.SetSel(from, newEnd);
+	} else {
+		const SA::Position newLength = wEditor.Length();
+		const SA::Position caret = std::min(oldCaret, newLength);
+		wEditor.SetSel(caret, caret);
+	}
+	wEditor.ScrollCaret();
+	WindowSetFocus(wEditor);
+}
+
 void SciTEBase::MenuCommand(int cmdID, int source) {
 	switch (cmdID) {
 	case IDM_NEW:
@@ -3434,6 +3502,10 @@ void SciTEBase::MenuCommand(int cmdID, int source) {
 
 	case IDM_LINEREVERSE:
 		PaneFocused().LineReverse();
+		break;
+
+	case IDM_FORMAT_JSON:
+		FormatJSON();
 		break;
 
 	case IDM_JOIN:
