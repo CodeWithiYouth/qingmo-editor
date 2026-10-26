@@ -72,6 +72,33 @@ constexpr int minimumSplit = 20;
 constexpr int baseSplitHorizontal = 300;
 constexpr int baseSplitVertical = 100;
 
+JsonFormatter::Options JsonOptions(const PropSetFile &props, Scintilla::EndOfLine eolMode, bool unwrapString) {
+	JsonFormatter::Options options;
+	options.indent = std::clamp(props.GetInt("json.format.indent", 2), 0, 8);
+	options.unwrapString = unwrapString;
+	switch (eolMode) {
+	case Scintilla::EndOfLine::CrLf:
+		options.eol = "\r\n";
+		break;
+	case Scintilla::EndOfLine::Cr:
+		options.eol = "\r";
+		break;
+	case Scintilla::EndOfLine::Lf:
+	default:
+		options.eol = "\n";
+		break;
+	}
+	return options;
+}
+
+std::string JsonErrorMessage(const JsonFormatter::Result &result) {
+	std::string message = "JSON 格式化失败";
+	message += "（第 " + std::to_string(result.line) + " 行，第 " +
+		   std::to_string(result.column) + " 列）：\n";
+	message += result.error;
+	return message;
+}
+
 }
 
 Searcher::Searcher() {
@@ -3116,29 +3143,12 @@ void SciTEBase::FormatJSON() {
 		wEditor.GetTextRangeFull(&range);
 	}
 
-	JsonFormatter::Options options;
-	options.indent = std::clamp(props.GetInt("json.format.indent", 2), 0, 8);
-	options.unwrapString = props.GetInt("json.format.unwrap.string", 1) != 0;
-	switch (wEditor.EOLMode()) {
-	case Scintilla::EndOfLine::CrLf:
-		options.eol = "\r\n";
-		break;
-	case Scintilla::EndOfLine::Cr:
-		options.eol = "\r";
-		break;
-	case Scintilla::EndOfLine::Lf:
-	default:
-		options.eol = "\n";
-		break;
-	}
+	const JsonFormatter::Options options = JsonOptions(
+		props, wEditor.EOLMode(), props.GetInt("json.format.unwrap.string", 0) != 0);
 
 	const JsonFormatter::Result result = JsonFormatter::Format(source, options);
 	if (!result.ok) {
-		std::string message = "JSON 格式化失败";
-		message += "（第 " + std::to_string(result.line) + " 行，第 " +
-			   std::to_string(result.column) + " 列）：\n";
-		message += result.error;
-		WindowMessageBox(wSciTE, GUI::StringFromUTF8(message));
+		WindowMessageBox(wSciTE, GUI::StringFromUTF8(JsonErrorMessage(result)));
 		return;
 	}
 
@@ -3167,6 +3177,47 @@ void SciTEBase::FormatJSON() {
 	if (result.unwrappedString) {
 		SetStatusBarText("已解包外层 JSON 字符串并格式化");
 	}
+}
+
+void SciTEBase::PreviewJSON() {
+	const SA::Position selectionStart = wEditor.SelectionStart();
+	const SA::Position selectionEnd = wEditor.SelectionEnd();
+	const bool hasSelection = selectionStart != selectionEnd;
+	const SA::Position from = hasSelection ? std::min(selectionStart, selectionEnd) : 0;
+	const SA::Position to = hasSelection ? std::max(selectionStart, selectionEnd) : wEditor.Length();
+
+	std::string source;
+	if (to > from) {
+		source.resize(static_cast<std::size_t>(to - from));
+		Scintilla::TextRangeFull range{};
+		range.chrg.cpMin = from;
+		range.chrg.cpMax = to;
+		range.lpstrText = source.data();
+		wEditor.GetTextRangeFull(&range);
+	}
+
+	const JsonFormatter::Options options = JsonOptions(props, wEditor.EOLMode(), true);
+	const JsonFormatter::Result result = JsonFormatter::Format(source, options);
+	if (!result.ok) {
+		WindowMessageBox(wSciTE, GUI::StringFromUTF8(JsonErrorMessage(result)));
+		return;
+	}
+	if (!result.unwrappedString) {
+		WindowMessageBox(wSciTE, GUI::StringFromUTF8(
+			"当前文本不是双重编码的 JSON 字符串，没有可预览的内层 JSON。"));
+		return;
+	}
+
+	New();
+	wEditor.SetText(result.text.c_str());
+	wEditor.SetSavePoint();
+	CurrentBuffer()->overrideExtension = "preview.json";
+	ReadProperties();
+	CurrentBuffer()->isDirty = false;
+	SetBuffersMenu();
+	SetWindowName();
+	WindowSetFocus(wEditor);
+	SetStatusBarText("已在新缓冲区显示解析后的 JSON（原文件未修改）");
 }
 
 void SciTEBase::MenuCommand(int cmdID, int source) {
@@ -3510,6 +3561,10 @@ void SciTEBase::MenuCommand(int cmdID, int source) {
 
 	case IDM_FORMAT_JSON:
 		FormatJSON();
+		break;
+
+	case IDM_PREVIEW_JSON:
+		PreviewJSON();
 		break;
 
 	case IDM_JOIN:

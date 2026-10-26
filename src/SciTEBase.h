@@ -792,6 +792,7 @@ protected:
 	void SetLineNumberWidth();
 	void MenuCommand(int cmdID, int source = 0);
 	void FormatJSON();
+	void PreviewJSON();
 	void FoldChanged(SA::Line line, SA::FoldLevel levelNow, SA::FoldLevel levelPrev);
 	void ExpandFolds(SA::Line line, bool expand, SA::FoldLevel level);
 	void FoldAll();

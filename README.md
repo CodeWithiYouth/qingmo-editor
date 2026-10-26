@@ -113,8 +113,11 @@ cmake --build build --target package --config Release
   ```
   允许 0–8，0 表示只换行不缩进
 - 严格 JSON：不支持 `//`、`/* */` 注释和尾随逗号；解析失败会提示行列，文档保持不变
-- 双重编码的接口响应（整个文件是一个 JSON 字符串，内部才是 JSON）会自动解包一层再格式化；
-  可用 `json.format.unwrap.string=0` 关闭
+- 双重编码的接口响应（整个文件是一个 JSON 字符串，内部才是 JSON）：
+  - **默认不转换**，`格式化 JSON` 会保持外层字符串
+  - 用 **编辑 → 预览解析后的 JSON**（`Ctrl+Alt+Shift+J`）在新缓冲区查看内层 JSON，
+    原文件不动；预览内容可以复制或另存
+  - 如果确实想转换，把 `json.format.unwrap.string` 设为 `1`
 - 整段替换合并为**一步撤销**，`Ctrl+Z` 可以直接回到格式化前
 - 字符串转义、数字字面量（包括 `-3.5e2`）和中文原样保留
 - 实现在 `src/JsonFormatter.cxx`，单遍递归下降解析，不依赖第三方 JSON 库
@@ -146,6 +149,7 @@ ctest --test-dir build -C Release --output-on-failure
 - **Lua 作为扩展层**：后续可以把“命令面板、插件、宏”优先做成 Lua 扩展，减少 C++ 改动。
 - **编辑内核不碰**：文本缓冲、编码、IME、绘制、滚动都由 Scintilla 负责，这是“轻量且稳定”的基础。
 - **JSON 格式化自研**：单遍解析 + 直接序列化，保留原始字符串和数字字面量，不引入第三方 JSON 库。
+- **默认 UTF-8**：`code.page=65001` + `character.set=204`，无 BOM 的中文文件也能正确显示。
 
 ## 下一步建议
 
