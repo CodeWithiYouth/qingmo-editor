@@ -266,6 +266,7 @@ protected:
 	void CopyPath() override;
 	void FullScreenToggle();
 	void Command(WPARAM wParam, LPARAM lParam);
+	void RegisterFileAssociations(bool unregister);
 	HWND MainHWND() noexcept;
 
 	void UserStripShow(const char *description) override;

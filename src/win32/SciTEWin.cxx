@@ -7,6 +7,7 @@
 
 #include <cstdlib>
 #include <cassert>
+#include <cwchar>
 
 #include <new>
 #include <compare>
@@ -829,8 +830,190 @@ void SciTEWin::Command(WPARAM wParam, LPARAM lParam) {
 		ShiftTab(LOWORD(lParam), HIWORD(lParam));
 		break;
 
+	case IDM_REGISTER_FILEASSOC:
+		RegisterFileAssociations(false);
+		break;
+
+	case IDM_UNREGISTER_FILEASSOC:
+		RegisterFileAssociations(true);
+		break;
+
 	default:
 		SciTEBase::MenuCommand(cmdID, menuSource);
+	}
+}
+
+namespace {
+
+LSTATUS RegSetString(const wchar_t *subKey, const wchar_t *valueName, const wchar_t *value) {
+	return ::RegSetKeyValueW(HKEY_CURRENT_USER, subKey, valueName, REG_SZ, value,
+		static_cast<DWORD>((std::wcslen(value) + 1) * sizeof(wchar_t)));
+}
+
+LSTATUS RegSetEmpty(const wchar_t *subKey, const wchar_t *valueName) {
+	return ::RegSetKeyValueW(HKEY_CURRENT_USER, subKey, valueName, REG_SZ, L"", sizeof(wchar_t));
+}
+
+LSTATUS RegDeleteValue(const wchar_t *subKey, const wchar_t *valueName) {
+	HKEY key = nullptr;
+	LSTATUS status = ::RegOpenKeyExW(HKEY_CURRENT_USER, subKey, 0, KEY_SET_VALUE, &key);
+	if (status == ERROR_FILE_NOT_FOUND) {
+		return ERROR_SUCCESS;
+	}
+	if (status != ERROR_SUCCESS) {
+		return status;
+	}
+	status = ::RegDeleteValueW(key, valueName);
+	::RegCloseKey(key);
+	return status == ERROR_FILE_NOT_FOUND ? ERROR_SUCCESS : status;
+}
+
+LSTATUS RegDeleteTree(const wchar_t *subKey) {
+	const LSTATUS status = ::RegDeleteTreeW(HKEY_CURRENT_USER, subKey);
+	return status == ERROR_FILE_NOT_FOUND ? ERROR_SUCCESS : status;
+}
+
+bool RegValueExists(const wchar_t *subKey, const wchar_t *valueName) {
+	HKEY key = nullptr;
+	if (::RegOpenKeyExW(HKEY_CURRENT_USER, subKey, 0, KEY_READ, &key) != ERROR_SUCCESS) {
+		return false;
+	}
+	DWORD type = 0;
+	DWORD size = 0;
+	const LSTATUS status = ::RegQueryValueExW(key, valueName, nullptr, &type, nullptr, &size);
+	::RegCloseKey(key);
+	return status == ERROR_SUCCESS;
+}
+
+bool RegStringEquals(const wchar_t *subKey, const wchar_t *valueName, const wchar_t *expected) {
+	HKEY key = nullptr;
+	if (::RegOpenKeyExW(HKEY_CURRENT_USER, subKey, 0, KEY_READ, &key) != ERROR_SUCCESS) {
+		return false;
+	}
+	DWORD type = 0;
+	DWORD size = 0;
+	LSTATUS status = ::RegQueryValueExW(key, valueName, nullptr, &type, nullptr, &size);
+	if (status != ERROR_SUCCESS || type != REG_SZ || size < sizeof(wchar_t)) {
+		::RegCloseKey(key);
+		return false;
+	}
+	std::wstring value(size / sizeof(wchar_t), L'\0');
+	status = ::RegQueryValueExW(key, valueName, nullptr, &type,
+		reinterpret_cast<BYTE *>(value.data()), &size);
+	::RegCloseKey(key);
+	if (status != ERROR_SUCCESS) {
+		return false;
+	}
+	value.resize(std::wcslen(value.c_str()));
+	return value == expected;
+}
+
+}
+
+void SciTEWin::RegisterFileAssociations(bool unregister) {
+	const char *question = unregister ?
+		"将移除“轻墨”注册的 .txt 和 .json 打开方式（仅当前用户）。\n\n继续吗？" :
+		"将把“轻墨”注册为 .txt 和 .json 的打开方式（仅当前用户，不需要管理员权限）。\n\nWindows 10/11 可能还需要在“设置 → 应用 → 默认应用”中确认。继续吗？";
+	if (WindowMessageBox(wSciTE, GUI::StringFromUTF8(question), mbsYesNo | mbsIconQuestion) != MessageBoxChoice::yes) {
+		return;
+	}
+
+	wchar_t modulePath[32768] {};
+	const DWORD length = ::GetModuleFileNameW(nullptr, modulePath, static_cast<DWORD>(std::size(modulePath)));
+	if (length == 0 || length >= std::size(modulePath)) {
+		WindowMessageBox(wSciTE, GUI::StringFromUTF8("无法获取 QingMo.exe 的路径，注册失败。"), mbsOK | mbsIconWarning);
+		return;
+	}
+	const std::wstring exePath(modulePath, length);
+	const std::wstring command = L"\"" + exePath + L"\" \"%1\"";
+	const std::wstring icon = L"\"" + exePath + L"\",0";
+
+	LSTATUS firstError = ERROR_SUCCESS;
+	const auto record = [&firstError](LSTATUS status) {
+		if (status != ERROR_SUCCESS && firstError == ERROR_SUCCESS) {
+			firstError = status;
+		}
+	};
+	const auto set = [&record](const wchar_t *subKey, const wchar_t *valueName, const wchar_t *value) {
+		record(RegSetString(subKey, valueName, value));
+	};
+	const auto setEmpty = [&record](const wchar_t *subKey, const wchar_t *valueName) {
+		record(RegSetEmpty(subKey, valueName));
+	};
+	const auto deleteValue = [&record](const wchar_t *subKey, const wchar_t *valueName) {
+		record(RegDeleteValue(subKey, valueName));
+	};
+	const auto deleteTree = [&record](const wchar_t *subKey) {
+		record(RegDeleteTree(subKey));
+	};
+
+	constexpr const wchar_t *textProgId = L"QingMo.Text";
+	constexpr const wchar_t *jsonProgId = L"QingMo.JSON";
+
+	if (unregister) {
+		if (RegStringEquals(L"Software\\Classes\\.txt", nullptr, textProgId)) {
+			deleteValue(L"Software\\Classes\\.txt", nullptr);
+		}
+		if (RegStringEquals(L"Software\\Classes\\.json", nullptr, jsonProgId)) {
+			deleteValue(L"Software\\Classes\\.json", nullptr);
+		}
+		deleteValue(L"Software\\Classes\\.txt\\OpenWithProgids", textProgId);
+		deleteValue(L"Software\\Classes\\.json\\OpenWithProgids", jsonProgId);
+		deleteTree(L"Software\\Classes\\QingMo.Text");
+		deleteTree(L"Software\\Classes\\QingMo.JSON");
+		deleteTree(L"Software\\Classes\\Applications\\QingMo.exe");
+		deleteTree(L"Software\\QingMo");
+		deleteValue(L"Software\\RegisteredApplications", L"QingMo");
+	} else {
+		set(L"Software\\Classes\\QingMo.Text", nullptr, L"轻墨 文本文件");
+		set(L"Software\\Classes\\QingMo.Text", L"FriendlyTypeName", L"轻墨 文本文件");
+		set(L"Software\\Classes\\QingMo.Text\\DefaultIcon", nullptr, icon.c_str());
+		set(L"Software\\Classes\\QingMo.Text\\shell\\open\\command", nullptr, command.c_str());
+		set(L"Software\\Classes\\QingMo.Text\\shell\\edit\\command", nullptr, command.c_str());
+
+		set(L"Software\\Classes\\QingMo.JSON", nullptr, L"轻墨 JSON 文件");
+		set(L"Software\\Classes\\QingMo.JSON", L"FriendlyTypeName", L"轻墨 JSON 文件");
+		set(L"Software\\Classes\\QingMo.JSON\\DefaultIcon", nullptr, icon.c_str());
+		set(L"Software\\Classes\\QingMo.JSON\\shell\\open\\command", nullptr, command.c_str());
+		set(L"Software\\Classes\\QingMo.JSON\\shell\\edit\\command", nullptr, command.c_str());
+
+		// Do not overwrite an existing per-user default; just add QingMo as a
+		// candidate. Windows 10/11 normally requires the user to confirm the
+		// default in Settings anyway.
+		if (!RegValueExists(L"Software\\Classes\\.txt", nullptr)) {
+			set(L"Software\\Classes\\.txt", nullptr, textProgId);
+		}
+		setEmpty(L"Software\\Classes\\.txt\\OpenWithProgids", textProgId);
+		if (!RegValueExists(L"Software\\Classes\\.json", nullptr)) {
+			set(L"Software\\Classes\\.json", nullptr, jsonProgId);
+		}
+		setEmpty(L"Software\\Classes\\.json\\OpenWithProgids", jsonProgId);
+
+		set(L"Software\\Classes\\Applications\\QingMo.exe", L"FriendlyAppName", L"轻墨");
+		setEmpty(L"Software\\Classes\\Applications\\QingMo.exe\\SupportedTypes", L".txt");
+		setEmpty(L"Software\\Classes\\Applications\\QingMo.exe\\SupportedTypes", L".json");
+		set(L"Software\\Classes\\Applications\\QingMo.exe\\shell\\open\\command", nullptr, command.c_str());
+
+		set(L"Software\\QingMo\\Capabilities", L"ApplicationName", L"轻墨");
+		set(L"Software\\QingMo\\Capabilities", L"ApplicationDescription", L"轻墨 - 轻量文本编辑器");
+		set(L"Software\\QingMo\\Capabilities", L"ApplicationIcon", icon.c_str());
+		set(L"Software\\QingMo\\Capabilities\\FileAssociations", L".txt", textProgId);
+		set(L"Software\\QingMo\\Capabilities\\FileAssociations", L".json", jsonProgId);
+		set(L"Software\\RegisteredApplications", L"QingMo", L"Software\\QingMo\\Capabilities");
+	}
+
+	if (firstError != ERROR_SUCCESS) {
+		const std::string message = "注册失败，错误码：" + std::to_string(static_cast<long>(firstError));
+		WindowMessageBox(wSciTE, GUI::StringFromUTF8(message), mbsOK | mbsIconWarning);
+		return;
+	}
+
+	if (unregister) {
+		WindowMessageBox(wSciTE, GUI::StringFromUTF8("已取消 .txt 和 .json 的关联。"), mbsOK);
+	} else {
+		WindowMessageBox(wSciTE, GUI::StringFromUTF8(
+			"已注册 .txt 和 .json 的打开方式。\n\nWindows 10/11 请在“设置 → 应用 → 默认应用”中选择“轻墨”；如果双击仍由其他程序打开，说明系统仍在使用旧的默认应用。"),
+			mbsOK);
 	}
 }
 
