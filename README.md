@@ -23,7 +23,7 @@ GitHub: <https://github.com/CodeWithiYouth/qingmo-editor>
 - 内置 JSON 格式化（编辑 → 格式化 JSON，`Ctrl+Alt+J`）
 - 默认横向窗口 **1080×640**（按 DPI 缩放）
 - 标签页右侧带 **X 关闭按钮**，悬停高亮，点击关闭对应标签
-- 支持注册 Windows 文件关联：`.txt` / `.json`
+- 支持注册 Windows 文件关联：`.txt` / `.json` / `.csv`
 - CSV 文件支持：底部「文本 / 数据」tab，数据视图为只读表格
 - 新图标：墨滴 + 文本光标（`src/win32/QingMo.ico`，16–256 多尺寸）
 - **尚未做**：关于页正文、安装包品牌化，UI 现代化，配置精简
@@ -178,18 +178,19 @@ CSV 解析和表格绘制在 `src/win32/CsvGrid.cxx`，底部 tab 接入在
 
 ## Windows 文件关联
 
-菜单：**选项 → 注册为文本/JSON 编辑器** / **取消文本/JSON 关联**。
+菜单：**选项 → 注册为文本/JSON/CSV 编辑器** / **取消文本/JSON/CSV 关联**。
 
 - 只写 `HKEY_CURRENT_USER`，当前用户生效，不需要管理员权限
 - 注册内容：
   - `.txt` → `QingMo.Text`
   - `.json` → `QingMo.JSON`
+  - `.csv` → `QingMo.CSV`
   - ProgID、`DefaultIcon`、`shell\open\command`、`shell\edit\command`
   - `OpenWithProgids`，让 QingMo 出现在“打开方式”中
   - `Applications\QingMo.exe` 和 `RegisteredApplications` / `Capabilities`，
     让 QingMo 出现在“设置 → 应用 → 默认应用”
 - Windows 10/11 的默认应用受 `UserChoice` 保护，如果双击仍由其他程序打开，
-  请到“设置 → 应用 → 默认应用”中把 `.txt` / `.json` 改为“轻墨”
+  请到“设置 → 应用 → 默认应用”中把 `.txt` / `.json` / `.csv` 改为“轻墨”
 - 注册使用的是**当前 exe 路径**；移动程序目录后需要重新注册
 - 取消注册只清理 QingMo 自己写入的 ProgID、Open With 和 capabilities；
   不会删除其他程序的关联

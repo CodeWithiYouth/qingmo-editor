@@ -912,8 +912,8 @@ bool RegStringEquals(const wchar_t *subKey, const wchar_t *valueName, const wcha
 
 void SciTEWin::RegisterFileAssociations(bool unregister) {
 	const char *question = unregister ?
-		"将移除“轻墨”注册的 .txt 和 .json 打开方式（仅当前用户）。\n\n继续吗？" :
-		"将把“轻墨”注册为 .txt 和 .json 的打开方式（仅当前用户，不需要管理员权限）。\n\nWindows 10/11 可能还需要在“设置 → 应用 → 默认应用”中确认。继续吗？";
+		"将移除“轻墨”注册的 .txt、.json 和 .csv 打开方式（仅当前用户）。\n\n继续吗？" :
+		"将把“轻墨”注册为 .txt、.json 和 .csv 的打开方式（仅当前用户，不需要管理员权限）。\n\nWindows 10/11 可能还需要在“设置 → 应用 → 默认应用”中确认。继续吗？";
 	if (WindowMessageBox(wSciTE, GUI::StringFromUTF8(question), mbsYesNo | mbsIconQuestion) != MessageBoxChoice::yes) {
 		return;
 	}
@@ -949,6 +949,7 @@ void SciTEWin::RegisterFileAssociations(bool unregister) {
 
 	constexpr const wchar_t *textProgId = L"QingMo.Text";
 	constexpr const wchar_t *jsonProgId = L"QingMo.JSON";
+	constexpr const wchar_t *csvProgId = L"QingMo.CSV";
 
 	if (unregister) {
 		if (RegStringEquals(L"Software\\Classes\\.txt", nullptr, textProgId)) {
@@ -957,10 +958,15 @@ void SciTEWin::RegisterFileAssociations(bool unregister) {
 		if (RegStringEquals(L"Software\\Classes\\.json", nullptr, jsonProgId)) {
 			deleteValue(L"Software\\Classes\\.json", nullptr);
 		}
+		if (RegStringEquals(L"Software\\Classes\\.csv", nullptr, csvProgId)) {
+			deleteValue(L"Software\\Classes\\.csv", nullptr);
+		}
 		deleteValue(L"Software\\Classes\\.txt\\OpenWithProgids", textProgId);
 		deleteValue(L"Software\\Classes\\.json\\OpenWithProgids", jsonProgId);
+		deleteValue(L"Software\\Classes\\.csv\\OpenWithProgids", csvProgId);
 		deleteTree(L"Software\\Classes\\QingMo.Text");
 		deleteTree(L"Software\\Classes\\QingMo.JSON");
+		deleteTree(L"Software\\Classes\\QingMo.CSV");
 		deleteTree(L"Software\\Classes\\Applications\\QingMo.exe");
 		deleteTree(L"Software\\QingMo");
 		deleteValue(L"Software\\RegisteredApplications", L"QingMo");
@@ -977,6 +983,12 @@ void SciTEWin::RegisterFileAssociations(bool unregister) {
 		set(L"Software\\Classes\\QingMo.JSON\\shell\\open\\command", nullptr, command.c_str());
 		set(L"Software\\Classes\\QingMo.JSON\\shell\\edit\\command", nullptr, command.c_str());
 
+		set(L"Software\\Classes\\QingMo.CSV", nullptr, L"轻墨 CSV 文件");
+		set(L"Software\\Classes\\QingMo.CSV", L"FriendlyTypeName", L"轻墨 CSV 文件");
+		set(L"Software\\Classes\\QingMo.CSV\\DefaultIcon", nullptr, icon.c_str());
+		set(L"Software\\Classes\\QingMo.CSV\\shell\\open\\command", nullptr, command.c_str());
+		set(L"Software\\Classes\\QingMo.CSV\\shell\\edit\\command", nullptr, command.c_str());
+
 		// Do not overwrite an existing per-user default; just add QingMo as a
 		// candidate. Windows 10/11 normally requires the user to confirm the
 		// default in Settings anyway.
@@ -988,10 +1000,15 @@ void SciTEWin::RegisterFileAssociations(bool unregister) {
 			set(L"Software\\Classes\\.json", nullptr, jsonProgId);
 		}
 		setEmpty(L"Software\\Classes\\.json\\OpenWithProgids", jsonProgId);
+		if (!RegValueExists(L"Software\\Classes\\.csv", nullptr)) {
+			set(L"Software\\Classes\\.csv", nullptr, csvProgId);
+		}
+		setEmpty(L"Software\\Classes\\.csv\\OpenWithProgids", csvProgId);
 
 		set(L"Software\\Classes\\Applications\\QingMo.exe", L"FriendlyAppName", L"轻墨");
 		setEmpty(L"Software\\Classes\\Applications\\QingMo.exe\\SupportedTypes", L".txt");
 		setEmpty(L"Software\\Classes\\Applications\\QingMo.exe\\SupportedTypes", L".json");
+		setEmpty(L"Software\\Classes\\Applications\\QingMo.exe\\SupportedTypes", L".csv");
 		set(L"Software\\Classes\\Applications\\QingMo.exe\\shell\\open\\command", nullptr, command.c_str());
 
 		set(L"Software\\QingMo\\Capabilities", L"ApplicationName", L"轻墨");
@@ -999,6 +1016,7 @@ void SciTEWin::RegisterFileAssociations(bool unregister) {
 		set(L"Software\\QingMo\\Capabilities", L"ApplicationIcon", icon.c_str());
 		set(L"Software\\QingMo\\Capabilities\\FileAssociations", L".txt", textProgId);
 		set(L"Software\\QingMo\\Capabilities\\FileAssociations", L".json", jsonProgId);
+		set(L"Software\\QingMo\\Capabilities\\FileAssociations", L".csv", csvProgId);
 		set(L"Software\\RegisteredApplications", L"QingMo", L"Software\\QingMo\\Capabilities");
 	}
 
@@ -1009,10 +1027,10 @@ void SciTEWin::RegisterFileAssociations(bool unregister) {
 	}
 
 	if (unregister) {
-		WindowMessageBox(wSciTE, GUI::StringFromUTF8("已取消 .txt 和 .json 的关联。"), mbsOK);
+		WindowMessageBox(wSciTE, GUI::StringFromUTF8("已取消 .txt、.json 和 .csv 的关联。"), mbsOK);
 	} else {
 		WindowMessageBox(wSciTE, GUI::StringFromUTF8(
-			"已注册 .txt 和 .json 的打开方式。\n\nWindows 10/11 请在“设置 → 应用 → 默认应用”中选择“轻墨”；如果双击仍由其他程序打开，说明系统仍在使用旧的默认应用。"),
+			"已注册 .txt、.json 和 .csv 的打开方式。\n\nWindows 10/11 请在“设置 → 应用 → 默认应用”中选择“轻墨”；如果双击仍由其他程序打开，说明系统仍在使用旧的默认应用。"),
 			mbsOK);
 	}
 }
