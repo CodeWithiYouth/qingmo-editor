@@ -167,8 +167,13 @@ protected:
 	FindStrip findStrip;
 	ReplaceStrip replaceStrip;
 
-	enum { bandTool, bandTab, bandContents, bandUser, bandBackground, bandSearch, bandFind, bandReplace, bandFilter, bandStatus };
+	enum { bandTool, bandTab, bandContents, bandUser, bandBackground, bandSearch, bandFind, bandReplace, bandFilter, bandCsvTabs, bandStatus };
 	std::vector<Band> bands;
+	GUI::Window wCsvTabs;
+	HWND wCsvGrid = nullptr;
+	bool csvTabsVisible = false;
+	bool csvDataVisible = false;
+	bool csvDirty = true;
 
 	void ReadLocalization() override;
 	void GetWindowPosition(int *left, int *top, int *width, int *height, int *maximize) override;
@@ -267,6 +272,11 @@ protected:
 	void FullScreenToggle();
 	void Command(WPARAM wParam, LPARAM lParam);
 	void RegisterFileAssociations(bool unregister);
+	void UpdateCsvPanel(bool force = false);
+	void UpdateCsvTabLabels();
+	void SetCsvGridPosition();
+	std::string GetEditorTextForCsv();
+	bool IsCsvFile() const;
 	HWND MainHWND() noexcept;
 
 	void UserStripShow(const char *description) override;

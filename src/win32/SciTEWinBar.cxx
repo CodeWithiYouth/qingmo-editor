@@ -7,6 +7,7 @@
 
 #include <cstdlib>
 #include <cassert>
+#include <cctype>
 
 #include <new>
 #include <compare>
@@ -35,7 +36,9 @@
 #include <shlobj.h>
 
 #include "SciTEWin.h"
+#include "ScintillaStructures.h"
 #include "WinBasics.h"
+#include "CsvGrid.h"
 
 /**
  * Set up properties for FileTime, FileDate, CurrentTime, CurrentDate and FileAttr.
@@ -304,11 +307,24 @@ void DrawCloseButton(HDC hDC, const RECT &button, bool hot, bool selected, int d
 void SciTEWin::Notify(SCNotification *notification) {
 	switch (notification->nmhdr.code) {
 	case TCN_SELCHANGE:
+		if (notification->nmhdr.idFrom == IDM_CSVTABWIN) {
+			csvDataVisible = TabCtrl_GetCurSel(HwndOf(wCsvTabs)) == 1;
+			UpdateCsvPanel(true);
+			SizeSubWindows();
+			if (csvDataVisible) {
+				::SetFocus(wCsvGrid);
+			} else {
+				WindowSetFocus(wEditor);
+			}
+			break;
+		}
 		// Change of tab
 		if (notification->nmhdr.idFrom == IDM_TABWIN) {
 			const BufferIndex index = TabCtrl_GetCurSel(HwndOf(wTabBar));
 			SetDocumentAt(index);
 			CheckReload();
+			csvDirty = true;
+			UpdateCsvPanel(true);
 		}
 		break;
 
@@ -477,6 +493,20 @@ void SciTEWin::Notify(SCNotification *notification) {
 		SciTEBase::Notify(notification);
 		break;
 
+	case SCN_MODIFIED:
+		SciTEBase::Notify(notification);
+		if (notification->nmhdr.idFrom == IDM_SRCWIN) {
+			csvDirty = true;
+		}
+		break;
+
+	case SCN_UPDATEUI:
+		SciTEBase::Notify(notification);
+		if (notification->nmhdr.idFrom == IDM_SRCWIN) {
+			UpdateCsvPanel(false);
+		}
+		break;
+
 	default:     	// Scintilla notification, use default treatment
 		SciTEBase::Notify(notification);
 		break;
@@ -550,6 +580,99 @@ void SciTEWin::SizeContentWindows() {
 /**
  * Resize the sub-windows, ie. the toolbar, tab bar, status bar. And call @a SizeContentWindows.
  */
+std::string SciTEWin::GetEditorTextForCsv() {
+	std::string text;
+	const SA::Position length = wEditor.Length();
+	if (length > 0) {
+		text.resize(static_cast<std::size_t>(length));
+		Scintilla::TextRangeFull range {};
+		range.chrg.cpMin = 0;
+		range.chrg.cpMax = length;
+		range.lpstrText = text.data();
+		wEditor.GetTextRangeFull(&range);
+	}
+	return text;
+}
+
+bool SciTEWin::IsCsvFile() const {
+	const std::string name = FileNameExt().AsUTF8();
+	if (name.size() < 4) {
+		return false;
+	}
+	std::string extension = name.substr(name.size() - 4);
+	for (char &ch : extension) {
+		ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+	}
+	return extension == ".csv";
+}
+
+void SciTEWin::UpdateCsvTabLabels() {
+	if (!wCsvTabs.Created()) {
+		return;
+	}
+	const auto setLabel = [this](int index, const char *key, const wchar_t *fallback) {
+		GUI::gui_string label = localiser.Text(key);
+		if (label.empty()) {
+			label = fallback;
+		}
+		TCITEMW item {};
+		item.mask = TCIF_TEXT;
+		item.pszText = label.data();
+		TabCtrl_SetItem(HwndOf(wCsvTabs), index, &item);
+	};
+	setLabel(0, "CSV Text", L"文本");
+	setLabel(1, "CSV Data", L"数据");
+}
+
+void SciTEWin::UpdateCsvPanel(bool force) {
+	if (!wCsvTabs.Created() || !wCsvGrid) {
+		return;
+	}
+
+	if (!IsCsvFile()) {
+		if (csvTabsVisible) {
+			csvTabsVisible = false;
+			csvDataVisible = false;
+			::ShowWindow(wCsvGrid, SW_HIDE);
+			SizeSubWindows();
+		}
+		return;
+	}
+
+	if (!csvTabsVisible) {
+		csvTabsVisible = true;
+		csvDataVisible = false;
+		TabCtrl_SetCurSel(HwndOf(wCsvTabs), 0);
+		UpdateCsvTabLabels();
+		::ShowWindow(wCsvGrid, SW_HIDE);
+		SizeSubWindows();
+	}
+
+	if (csvDataVisible) {
+		if (force || csvDirty) {
+			CsvGrid::SetText(wCsvGrid, GetEditorTextForCsv());
+			csvDirty = false;
+		}
+		SetCsvGridPosition();
+	} else {
+		if (::IsWindowVisible(wCsvGrid)) {
+			::ShowWindow(wCsvGrid, SW_HIDE);
+		}
+	}
+}
+
+void SciTEWin::SetCsvGridPosition() {
+	if (!wCsvGrid) {
+		return;
+	}
+	RECT rcContent {};
+	::GetWindowRect(HwndOf(wContent), &rcContent);
+	::MapWindowPoints(HWND_DESKTOP, MainHWND(), reinterpret_cast<LPPOINT>(&rcContent), 2);
+	::SetWindowPos(wCsvGrid, HWND_TOP, rcContent.left, rcContent.top,
+		rcContent.right - rcContent.left, rcContent.bottom - rcContent.top,
+		SWP_NOACTIVATE | (csvDataVisible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
+}
+
 void SciTEWin::SizeSubWindows() {
 	const GUI::Rectangle rcClient = wSciTE.GetClientPosition();
 	bool showTab = false;
@@ -581,6 +704,8 @@ void SciTEWin::SizeSubWindows() {
 	bands[bandFind].visible = findStrip.visible;
 	bands[bandReplace].visible = replaceStrip.visible;
 	bands[bandFilter].visible = filterStrip.visible;
+	bands[bandCsvTabs].visible = csvTabsVisible;
+	bands[bandCsvTabs].height = heightTab;
 
 	const GUI::Rectangle rcSB = wStatusBar.GetPosition();
 	bands[bandStatus].height = rcSB.Height() - 2;	// -2 hides a top border
@@ -627,6 +752,8 @@ void SciTEWin::SizeSubWindows() {
 	}
 	if (hdwp)
 		::EndDeferWindowPos(hdwp);
+
+	SetCsvGridPosition();
 
 	visHeightTools = bands[bandTool].height;
 	visHeightTab = bands[bandTab].height;
@@ -1210,6 +1337,35 @@ void SciTEWin::Creation() {
 
 	wTabBar.Show();
 
+	wCsvTabs = ::CreateWindowExW(
+		0,
+		WC_TABCONTROL,
+		L"CSV",
+		WS_CHILD | WS_CLIPSIBLINGS | TCS_BOTTOM | TCS_FOCUSNEVER | TCS_TOOLTIPS,
+		0, 0, widthWindow, heightTab,
+		MainHWND(),
+		HmenuID(IDM_CSVTABWIN),
+		hInstance,
+		nullptr);
+	if (!wCsvTabs.Created()) {
+		exit(FALSE);
+	}
+	SetWindowFont(HwndOf(wCsvTabs), fontTabs, 0);
+	TCITEMW csvItem {};
+	csvItem.mask = TCIF_TEXT;
+	csvItem.pszText = const_cast<wchar_t *>(L"文本");
+	TabCtrl_InsertItem(HwndOf(wCsvTabs), 0, &csvItem);
+	csvItem.pszText = const_cast<wchar_t *>(L"数据");
+	TabCtrl_InsertItem(HwndOf(wCsvTabs), 1, &csvItem);
+	TabCtrl_SetCurSel(HwndOf(wCsvTabs), 0);
+	::ShowWindow(HwndOf(wCsvTabs), SW_HIDE);
+
+	wCsvGrid = CsvGrid::Create(MainHWND(), hInstance, 0);
+	if (!wCsvGrid) {
+		exit(FALSE);
+	}
+	::ShowWindow(wCsvGrid, SW_HIDE);
+
 	CreateStrip(L"BackgroundStrip", &backgroundStrip);
 	CreateStrip(L"UserStrip", &userStrip);
 	CreateStrip(L"SearchStrip", &searchStrip);
@@ -1244,6 +1400,7 @@ void SciTEWin::Creation() {
 	bands.emplace_back(true, findStrip.Height(), false, findStrip);
 	bands.emplace_back(true, replaceStrip.Height(), false, replaceStrip);
 	bands.emplace_back(true, filterStrip.Height(), false, filterStrip);
+	bands.emplace_back(false, heightTab, false, wCsvTabs);
 	bands.emplace_back(true, heightStatus, false, wStatusBar);
 
 #ifndef NO_LUA

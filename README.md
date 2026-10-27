@@ -24,6 +24,7 @@ GitHub: <https://github.com/CodeWithiYouth/qingmo-editor>
 - 默认横向窗口 **1080×640**（按 DPI 缩放）
 - 标签页右侧带 **X 关闭按钮**，悬停高亮，点击关闭对应标签
 - 支持注册 Windows 文件关联：`.txt` / `.json`
+- CSV 文件支持：底部「文本 / 数据」tab，数据视图为只读表格
 - 新图标：墨滴 + 文本光标（`src/win32/QingMo.ico`，16–256 多尺寸）
 - **尚未做**：关于页正文、安装包品牌化，UI 现代化，配置精简
 
@@ -156,6 +157,25 @@ ctest --test-dir build -C Release --output-on-failure
 
 实现在 `src/win32/SciTEWinBar.cxx` 的 `TabWndProc`、`DrawCloseButtons` 和 `CloseButtonRect`。
 
+## CSV 数据视图
+
+打开 `.csv` 文件后，窗口底部会出现两个 tab：
+
+- **文本**：当前编辑器，按原始 CSV 文本显示和编辑
+- **数据**：只读表格视图，类似 Excel
+
+数据视图功能：
+
+- 列标题 A / B / C ...，行号 1 / 2 / 3 ...
+- 单元格选择、鼠标拖动选择、方向键 / PageUp / PageDown / Home / End
+- 水平/垂直滚动条，固定行头和列头
+- 支持标准 CSV：引号字段、`""` 转义、字段内逗号、字段内换行（显示时转成空格）
+- 在文本 tab 修改内容后切回数据 tab 会自动重新解析
+- 数据 tab 只读，不会改动文件内容
+
+CSV 解析和表格绘制在 `src/win32/CsvGrid.cxx`，底部 tab 接入在
+`src/win32/SciTEWinBar.cxx`。
+
 ## Windows 文件关联
 
 菜单：**选项 → 注册为文本/JSON 编辑器** / **取消文本/JSON 关联**。
@@ -190,6 +210,7 @@ ctest --test-dir build -C Release --output-on-failure
 - **编辑内核不碰**：文本缓冲、编码、IME、绘制、滚动都由 Scintilla 负责，这是“轻量且稳定”的基础。
 - **JSON 格式化自研**：单遍解析 + 直接序列化，保留原始字符串和数字字面量，不引入第三方 JSON 库。
 - **默认 UTF-8**：`code.page=65001` + `character.set=204`，无 BOM 的中文文件也能正确显示。
+- **CSV 表格自绘**：只绘制可视行列，支持引号字段和内嵌换行；数据视图只读，避免误改原始 CSV。
 
 ## 下一步建议
 

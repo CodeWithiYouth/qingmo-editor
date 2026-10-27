@@ -146,6 +146,7 @@
 #define IDM_TOOLWIN			352
 #define IDM_STATUSWIN		353
 #define IDM_TABWIN			354
+#define IDM_CSVTABWIN		355
 #define IDM_CONTENTWIN		355
 
 // Options
