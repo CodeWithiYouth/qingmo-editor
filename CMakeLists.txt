@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 cmake_minimum_required(VERSION 3.25)
 
 project(QingMo
@@ -165,6 +166,20 @@ add_custom_target(package
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/config"
         "${CMAKE_BINARY_DIR}/package"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "${CMAKE_BINARY_DIR}/package/licenses"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/LICENSES"
+        "${CMAKE_BINARY_DIR}/package/licenses"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
+        "${CMAKE_BINARY_DIR}/package/"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md"
+        "${CMAKE_BINARY_DIR}/package/"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+        "${CMAKE_BINARY_DIR}/package/"
     DEPENDS qingmo
     COMMENT "Staging ${APP_NAME} into build/package"
     VERBATIM

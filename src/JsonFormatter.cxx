@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // JSON formatter for QingMo.
 #include "JsonFormatter.h"
 

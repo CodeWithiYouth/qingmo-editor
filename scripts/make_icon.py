@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Generate the Qingmo application icons.
 
 Design: a white ink drop next to a cyan text caret on a dark rounded square.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # Build QingMo with the Visual Studio generator.
 # Usage:  .\scripts\build.ps1
 $ErrorActionPreference = "Stop"

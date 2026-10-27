@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # Run the already-built QingMo.
 # Usage:  .\scripts\run.ps1
 $ErrorActionPreference = "Stop"

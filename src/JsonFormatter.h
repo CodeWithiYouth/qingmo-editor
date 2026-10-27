@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // JSON formatter for QingMo.
 // Parses strict JSON and re-serializes it with stable indentation.
 #ifndef JSONFORMATTER_H

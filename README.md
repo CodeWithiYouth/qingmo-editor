@@ -2,6 +2,8 @@
 
 基于 **SciTE 5.6.7** 的轻量 Windows 文本编辑器骨架。
 
+GitHub: <https://github.com/CodeWithiYouth/qingmo-editor>
+
 目标是把 SciTE 的“小、快、稳定”保留下来，逐步替换界面和交互，做成一个现代化的轻量编辑器，而不是从零重写文本内核。
 
 ## 当前状态
@@ -28,6 +30,9 @@
 
 ```
 CMakeLists.txt              # 唯一的构建入口
+LICENSE                     # 项目原创代码的 MIT 许可证
+THIRD_PARTY_NOTICES.md      # SciTE/Scintilla/Lexilla/Lua 第三方声明
+LICENSES/                   # 第三方许可证全文
 src/                        # SciTE 应用层（core，平台无关）
 src/win32/                  # Windows 壳层、资源、菜单、对话框
 config/                     # .properties 配置、中文语言包、Lua 内嵌脚本
@@ -90,8 +95,11 @@ build\bin\*.properties
 
 ```powershell
 cmake --build build --target package --config Release
-# 输出：build\package\QingMo.exe + 配置
+# 输出：build\package\QingMo.exe + 配置 + 许可证
 ```
+
+包内包含 `LICENSE`、`THIRD_PARTY_NOTICES.md`、`README.md` 和 `licenses/`，
+二进制分发时不要删除这些文件。
 
 ## 中文界面
 
@@ -175,15 +183,19 @@ ctest --test-dir build -C Release --output-on-failure
 
 ## 上游与许可证
 
-本项目包含以下上游代码，版权归原作者所有：
+QingMo 原创代码采用 **MIT**，见 `LICENSE`。第三方组件保留各自许可证，
+完整声明见 `THIRD_PARTY_NOTICES.md` 与 `LICENSES/`。
 
 | 组件 | 版本 | 许可证 |
 |---|---|---|
+| QingMo 原创代码 | — | MIT |
 | SciTE | 5.6.7 | HPND 风格（见 `third_party/scintilla/License.txt`） |
 | Scintilla | 5.6.7 | HPND 风格 |
 | Lexilla | 5.5.4 | HPND 风格 |
 | Lua | 5.3.4 | MIT |
 
-完整文本见 `LICENSES/` 与各 `third_party/*/License.txt`。
+`src/` 中来自 SciTE 的文件保留原版权头，适用 SciTE 许可证；`third_party/`
+中的组件适用各自许可证。完整文本见 `LICENSES/` 与各
+`third_party/*/License.txt`。
 
 > `_download/` 是导入时留下的上游原始包，不参与构建，可以安全删除。

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 #include "JsonFormatter.h"
 
 #include <iomanip>
