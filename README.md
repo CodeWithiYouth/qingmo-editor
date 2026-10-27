@@ -147,6 +147,30 @@ ctest --test-dir build -C Release --output-on-failure
 
 也可以直接运行 `build\Release\json_formatter_test.exe`。
 
+## 自动发布 Release
+
+工作流：`.github/workflows/release.yml`
+
+触发方式：
+
+1. 推送 tag：
+   ```powershell
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+2. 或 GitHub → Actions → **Release** → Run workflow，填写 `version`（例如 `v0.1.0`）
+
+工作流会：
+
+- 在 `windows-2022` 上用 Visual Studio 2022 构建
+- 运行 JSON 单元测试
+- 生成便携包
+- 创建 GitHub Release，包含两个资产：
+  - `QingMo-v0.1.0-win64.exe`：可直接下载运行的 exe
+  - `QingMo-v0.1.0-win64.zip`：完整便携包，含配置、LICENSE、第三方声明和 `licenses/`
+
+> 单 exe 适合快速试跑；需要完整语言配置和许可证文件时请下载 zip。
+
 ## 标签页
 
 - 每个标签右侧显示一个 **X** 关闭图标
