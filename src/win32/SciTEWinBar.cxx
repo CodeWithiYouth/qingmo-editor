@@ -107,7 +107,9 @@ namespace {
 
 // Reserve room on the right of every tab for the close button.
 GUI::gui_string TabTextWithCloseButton(const GUI::gui_string &text) {
-	return text + L"     ";
+	// Non-breaking spaces are not trimmed by the tab control, so even short
+	// titles reserve room for the close button.
+	return text + L"\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0";
 }
 
 }
@@ -227,7 +229,7 @@ bool CloseButtonRect(HWND hWnd, int tab, RECT &button, int dpi) noexcept {
 		return false;
 	}
 	const int box = ::MulDiv(18, dpi, 96);
-	const int margin = ::MulDiv(4, dpi, 96);
+	const int margin = ::MulDiv(3, dpi, 96);
 	const int top = tabRect.top + ((tabRect.bottom - tabRect.top) - box) / 2;
 	button.left = tabRect.right - margin - box;
 	button.right = tabRect.right - margin;
