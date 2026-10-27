@@ -630,6 +630,10 @@ void SciTEWin::UpdateCsvPanel(bool force) {
 	}
 
 	if (!IsCsvFile()) {
+		if (!csvPath.empty()) {
+			csvPath.clear();
+			CsvGrid::ResetSort(wCsvGrid);
+		}
 		if (csvTabsVisible) {
 			csvTabsVisible = false;
 			csvDataVisible = false;
@@ -637,6 +641,13 @@ void SciTEWin::UpdateCsvPanel(bool force) {
 			SizeSubWindows();
 		}
 		return;
+	}
+
+	const std::string path = FileNameExt().AsUTF8();
+	if (path != csvPath) {
+		csvPath = path;
+		csvDirty = true;
+		CsvGrid::ResetSort(wCsvGrid);
 	}
 
 	if (!csvTabsVisible) {

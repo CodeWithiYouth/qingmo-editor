@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
+#include <cwchar>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -33,6 +35,8 @@ struct State {
 	int leftColumn = 0;
 	int selectedRow = 0;
 	int selectedColumn = 0;
+	int sortColumn = -1;
+	bool sortAscending = true;
 	bool hasFocus = false;
 	bool dragging = false;
 };
@@ -254,6 +258,109 @@ void EnsureSelectionVisible(State &state) {
 	UpdateScrollBars(state);
 }
 
+std::wstring TrimCell(const std::wstring &text) {
+	std::size_t begin = 0;
+	std::size_t end = text.size();
+	while (begin < end && (text[begin] == L' ' || text[begin] == L'\t' ||
+		text[begin] == L'\r' || text[begin] == L'\n')) {
+		++begin;
+	}
+	while (end > begin && (text[end - 1] == L' ' || text[end - 1] == L'\t' ||
+		text[end - 1] == L'\r' || text[end - 1] == L'\n')) {
+		--end;
+	}
+	return text.substr(begin, end - begin);
+}
+
+bool TryNumber(const std::wstring &text, double &number) {
+	if (text.empty()) {
+		return false;
+	}
+	wchar_t *end = nullptr;
+	const double value = std::wcstod(text.c_str(), &end);
+	if (end == text.c_str() || *end != L'\0') {
+		return false;
+	}
+	number = value;
+	return true;
+}
+
+int CompareText(const std::wstring &a, const std::wstring &b) {
+	const int result = ::CompareStringEx(LOCALE_NAME_USER_DEFAULT, NORM_IGNORECASE,
+		a.c_str(), static_cast<int>(a.size()),
+		b.c_str(), static_cast<int>(b.size()),
+		nullptr, nullptr, 0);
+	if (result == CSTR_LESS_THAN) {
+		return -1;
+	}
+	if (result == CSTR_GREATER_THAN) {
+		return 1;
+	}
+	return 0;
+}
+
+bool RowLess(const std::vector<std::wstring> &a,
+	     const std::vector<std::wstring> &b, int column, bool ascending) {
+	const std::wstring empty;
+	const std::wstring aText = TrimCell(column < static_cast<int>(a.size()) ? a[column] : empty);
+	const std::wstring bText = TrimCell(column < static_cast<int>(b.size()) ? b[column] : empty);
+	const bool aEmpty = aText.empty();
+	const bool bEmpty = bText.empty();
+	if (aEmpty || bEmpty) {
+		if (aEmpty && bEmpty) {
+			return false;
+		}
+		return !aEmpty;	// Keep empty cells at the end in both directions.
+	}
+
+	double aNumber = 0.0;
+	double bNumber = 0.0;
+	const bool aNumeric = TryNumber(aText, aNumber);
+	const bool bNumeric = TryNumber(bText, bNumber);
+	if (aNumeric != bNumeric) {
+		return aNumeric;	// Numbers before text in both directions.
+	}
+	if (aNumeric && bNumeric) {
+		if (aNumber == bNumber) {
+			return false;
+		}
+		return ascending ? aNumber < bNumber : aNumber > bNumber;
+	}
+	const int comparison = CompareText(aText, bText);
+	return ascending ? comparison < 0 : comparison > 0;
+}
+
+void ApplySort(State &state) {
+	if (state.sortColumn < 0 || state.sortColumn >= state.columnCount ||
+	    state.rows.size() < 2) {
+		return;
+	}
+	const int column = state.sortColumn;
+	const bool ascending = state.sortAscending;
+	std::stable_sort(state.rows.begin() + 1, state.rows.end(),
+		[column, ascending](const std::vector<std::wstring> &a,
+				    const std::vector<std::wstring> &b) {
+			return RowLess(a, b, column, ascending);
+		});
+	state.selectedRow = std::clamp(state.selectedRow, 0, static_cast<int>(state.rows.size()) - 1);
+	EnsureSelectionVisible(state);
+	UpdateScrollBars(state);
+	::InvalidateRect(state.hwnd, nullptr, FALSE);
+}
+
+void SortByColumn(State &state, int column) {
+	if (state.rows.size() < 2 || column < 0 || column >= state.columnCount) {
+		return;
+	}
+	if (state.sortColumn == column) {
+		state.sortAscending = !state.sortAscending;
+	} else {
+		state.sortColumn = column;
+		state.sortAscending = true;
+	}
+	ApplySort(state);
+}
+
 bool CellAt(const State &state, POINT pt, int &row, int &column) {
 	RECT rc {};
 	::GetClientRect(state.hwnd, &rc);
@@ -412,6 +519,28 @@ void PaintGrid(HWND hwnd, State &state) {
 		std::wstring name = ColumnName(column);
 		::DrawTextW(buffer, name.c_str(), -1, const_cast<RECT *>(&cell),
 			DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+		if (state.sortColumn == column) {
+			const int centreX = x + state.columnWidth - ::MulDiv(12, state.dpi, 96);
+			const int centreY = state.headerHeight / 2;
+			const int half = ::MulDiv(4, state.dpi, 96);
+			POINT triangle[3] {};
+			if (state.sortAscending) {
+				triangle[0] = {centreX - half, centreY + half / 2};
+				triangle[1] = {centreX + half, centreY + half / 2};
+				triangle[2] = {centreX, centreY - half / 2};
+			} else {
+				triangle[0] = {centreX - half, centreY - half / 2};
+				triangle[1] = {centreX + half, centreY - half / 2};
+				triangle[2] = {centreX, centreY + half / 2};
+			}
+			HBRUSH arrowBrush = ::CreateSolidBrush(textColour);
+			HBRUSH oldBrush = SelectBrush(buffer, arrowBrush);
+			HPEN oldPen = SelectPen(buffer, ::GetStockObject(NULL_PEN));
+			::Polygon(buffer, triangle, 3);
+			SelectPen(buffer, oldPen);
+			SelectBrush(buffer, oldBrush);
+			::DeleteObject(arrowBrush);
+		}
 	}
 
 	for (int row = state.topRow;
@@ -569,6 +698,16 @@ LRESULT CALLBACK GridWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
 		if (state) {
 			::SetFocus(hwnd);
 			POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+			if (pt.y < state->headerHeight) {
+				if (pt.x >= state->rowHeaderWidth) {
+					const int column = state->leftColumn +
+						(pt.x - state->rowHeaderWidth) / std::max(1, state->columnWidth);
+					if (column >= 0 && column < state->columnCount) {
+						SortByColumn(*state, column);
+					}
+				}
+				return 0;
+			}
 			int row = 0;
 			int column = 0;
 			if (CellAt(*state, pt, row, column)) {
@@ -714,11 +853,28 @@ void CsvGrid::SetText(HWND hwnd, std::string_view utf8) {
 	if (!state) {
 		return;
 	}
+	const int previousSortColumn = state->sortColumn;
+	const bool previousSortAscending = state->sortAscending;
 	ParseCsv(utf8, *state);
+	state->sortColumn = previousSortColumn >= state->columnCount ? -1 : previousSortColumn;
+	state->sortAscending = previousSortAscending;
 	state->topRow = 0;
 	state->leftColumn = 0;
 	state->selectedRow = 0;
 	state->selectedColumn = 0;
+	if (state->sortColumn >= 0) {
+		ApplySort(*state);
+	}
 	UpdateScrollBars(*state);
 	::InvalidateRect(hwnd, nullptr, TRUE);
+}
+
+void CsvGrid::ResetSort(HWND hwnd) {
+	State *state = GetState(hwnd);
+	if (!state) {
+		return;
+	}
+	state->sortColumn = -1;
+	state->sortAscending = true;
+	::InvalidateRect(hwnd, nullptr, FALSE);
 }

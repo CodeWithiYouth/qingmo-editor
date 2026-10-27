@@ -174,6 +174,7 @@ protected:
 	bool csvTabsVisible = false;
 	bool csvDataVisible = false;
 	bool csvDirty = true;
+	std::string csvPath;
 
 	void ReadLocalization() override;
 	void GetWindowPosition(int *left, int *top, int *width, int *height, int *maximize) override;

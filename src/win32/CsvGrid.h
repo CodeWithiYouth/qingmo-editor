@@ -11,6 +11,7 @@ namespace CsvGrid {
 bool Register(HINSTANCE hInstance);
 HWND Create(HWND parent, HINSTANCE hInstance, int id);
 void SetText(HWND hwnd, std::string_view utf8);
+void ResetSort(HWND hwnd);
 
 }
 
