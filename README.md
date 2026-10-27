@@ -32,6 +32,7 @@ GitHub: <https://github.com/CodeWithiYouth/qingmo-editor>
 CMakeLists.txt              # 唯一的构建入口
 LICENSE                     # 项目原创代码的 MIT 许可证
 THIRD_PARTY_NOTICES.md      # SciTE/Scintilla/Lexilla/Lua 第三方声明
+SOURCE_PROVENANCE.md        # 源码下载地址、SHA-256 与导入映射
 LICENSES/                   # 第三方许可证全文
 src/                        # SciTE 应用层（core，平台无关）
 src/win32/                  # Windows 壳层、资源、菜单、对话框
@@ -98,8 +99,8 @@ cmake --build build --target package --config Release
 # 输出：build\package\QingMo.exe + 配置 + 许可证
 ```
 
-包内包含 `LICENSE`、`THIRD_PARTY_NOTICES.md`、`README.md` 和 `licenses/`，
-二进制分发时不要删除这些文件。
+包内包含 `LICENSE`、`THIRD_PARTY_NOTICES.md`、`SOURCE_PROVENANCE.md`、
+`README.md` 和 `licenses/`，二进制分发时不要删除这些文件。
 
 ## 中文界面
 
@@ -185,6 +186,10 @@ ctest --test-dir build -C Release --output-on-failure
 
 QingMo 原创代码采用 **MIT**，见 `LICENSE`。第三方组件保留各自许可证，
 完整声明见 `THIRD_PARTY_NOTICES.md` 与 `LICENSES/`。
+
+源码下载地址、版本、SHA-256 和导入映射见 `SOURCE_PROVENANCE.md`。
+本仓库是从 SciTE 官方源码包导入的**派生仓库**，不是 GitHub Fork 按钮产生的 fork；
+原因是 SciTE 官方仓库在 SourceForge/Mercurial，GitHub 上没有可直接 fork 的官方仓库。
 
 | 组件 | 版本 | 许可证 |
 |---|---|---|

@@ -178,6 +178,9 @@ add_custom_target(package
         "${CMAKE_CURRENT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md"
         "${CMAKE_BINARY_DIR}/package/"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/SOURCE_PROVENANCE.md"
+        "${CMAKE_BINARY_DIR}/package/"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
         "${CMAKE_BINARY_DIR}/package/"
     DEPENDS qingmo
