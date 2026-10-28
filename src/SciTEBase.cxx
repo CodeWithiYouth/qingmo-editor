@@ -3148,11 +3148,16 @@ void SciTEBase::FormatJSON() {
 
 	const JsonFormatter::Result result = JsonFormatter::Format(source, options);
 	if (!result.ok) {
-		WindowMessageBox(wSciTE, GUI::StringFromUTF8(JsonErrorMessage(result)));
+		std::string message = JsonErrorMessage(result);
+		if (hasSelection) {
+			message += "\n\n当前只格式化了选区。若要格式化整个文档，请先取消选区。";
+		}
+		WindowMessageBox(wSciTE, GUI::StringFromUTF8(message));
 		return;
 	}
 
 	if (result.text == source) {
+		SetStatusBarText("JSON 已经是格式化状态");
 		WindowSetFocus(wEditor);
 		return;
 	}
@@ -3176,6 +3181,8 @@ void SciTEBase::FormatJSON() {
 	WindowSetFocus(wEditor);
 	if (result.unwrappedString) {
 		SetStatusBarText("已解包外层 JSON 字符串并格式化");
+	} else {
+		SetStatusBarText("JSON 格式化完成，记得保存文件");
 	}
 }
 
@@ -3199,12 +3206,24 @@ void SciTEBase::PreviewJSON() {
 	const JsonFormatter::Options options = JsonOptions(props, wEditor.EOLMode(), true);
 	const JsonFormatter::Result result = JsonFormatter::Format(source, options);
 	if (!result.ok) {
-		WindowMessageBox(wSciTE, GUI::StringFromUTF8(JsonErrorMessage(result)));
+		std::string message = JsonErrorMessage(result);
+		if (hasSelection) {
+			message += "\n\n当前只格式化了选区。若要格式化整个文档，请先取消选区。";
+		}
+		WindowMessageBox(wSciTE, GUI::StringFromUTF8(message));
 		return;
 	}
 	if (!result.unwrappedString) {
-		WindowMessageBox(wSciTE, GUI::StringFromUTF8(
-			"当前文本不是双重编码的 JSON 字符串，没有可预览的内层 JSON。"));
+		std::string message = "当前文本不是双重编码的 JSON 字符串，没有可预览的内层 JSON。";
+		std::size_t pos = source.starts_with("\xEF\xBB\xBF") ? 3 : 0;
+		while (pos < source.size() && (source[pos] == ' ' || source[pos] == '\t' ||
+			source[pos] == '\r' || source[pos] == '\n')) {
+			++pos;
+		}
+		if (pos < source.size() && (source[pos] == '{' || source[pos] == '[')) {
+			message += "\n\n当前是普通 JSON，请使用“格式化 JSON”（Ctrl+Alt+J）。";
+		}
+		WindowMessageBox(wSciTE, GUI::StringFromUTF8(message));
 		return;
 	}
 
