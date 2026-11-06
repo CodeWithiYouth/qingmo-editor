@@ -31,6 +31,7 @@
 #define NOMINMAX 1
 #include <windows.h>
 #include <windowsx.h>
+#include <commctrl.h>
 #include <shlobj.h>
 
 #include "SciTEWin.h"
@@ -180,6 +181,9 @@ bool SciTEWin::ModelessHandler(MSG *pmsg) {
 		return true;
 	}
 	if (DialogHandled(wFindInFiles.GetID(), pmsg)) {
+		return true;
+	}
+	if (DialogHandled(wSearchAll.GetID(), pmsg)) {
 		return true;
 	}
 	if (wParameters.GetID()) {
@@ -1045,6 +1049,389 @@ BOOL SciTEWin::FindMessage(HWND hDlg, UINT message, WPARAM wParam) {
 
 INT_PTR CALLBACK SciTEWin::FindDlg(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
 	return Caller(hDlg, message, lParam)->FindMessage(hDlg, message, wParam);
+}
+
+namespace {
+
+int MapDialogUnitsX(HWND hDlg, int units) {
+	RECT mapped {0, 0, units, 0};
+	::MapDialogRect(hDlg, &mapped);
+	return mapped.right;
+}
+
+int MapDialogUnitsY(HWND hDlg, int units) {
+	RECT mapped {0, 0, 0, units};
+	::MapDialogRect(hDlg, &mapped);
+	return mapped.bottom;
+}
+
+std::wstring SearchAllDisplayText(const std::string &utf8) {
+	std::wstring text = GUI::StringFromUTF8(utf8);
+	for (wchar_t &ch : text) {
+		if (ch == L'\r' || ch == L'\t' || ch == L'\n') {
+			ch = L' ';
+		}
+	}
+	constexpr std::size_t maxLength = 400;
+	if (text.size() > maxLength) {
+		text.resize(maxLength);
+		text += L"\u2026";
+	}
+	return text;
+}
+
+}
+
+void SciTEWin::ShowSearchAll() {
+	if (wSearchAll.Created()) {
+		HWND hDlg = HwndOf(wSearchAll);
+		if (!hDlg) {
+			return;
+		}
+		SelectionIntoFind();
+		Dialog dlg(hDlg);
+		dlg.SetItemTextU(IDC_SEARCHALL_QUERY, findWhat);
+		dlg.SetCheck(IDC_SEARCHALL_WHOLEWORD, wholeWord);
+		dlg.SetCheck(IDC_SEARCHALL_MATCHCASE, matchCase);
+		dlg.SetCheck(IDC_SEARCHALL_REGEXP, regExp);
+		::SendDlgItemMessageW(hDlg, IDC_SEARCHALL_QUERY, EM_SETSEL, 0, -1);
+		::ShowWindow(hDlg, SW_SHOWNORMAL);
+		::SetForegroundWindow(hDlg);
+		::SetFocus(::GetDlgItem(hDlg, IDC_SEARCHALL_QUERY));
+		SearchAllDoSearch();
+		return;
+	}
+
+	SelectionIntoFind();
+	wSearchAll = CreateParameterisedDialog(MAKEINTRESOURCE(IDD_SEARCHALL), SearchAllDlg);
+	if (!wSearchAll.Created()) {
+		return;
+	}
+	wSearchAll.Show();
+	HWND hDlg = HwndOf(wSearchAll);
+	::SetForegroundWindow(hDlg);
+	::SetFocus(::GetDlgItem(hDlg, IDC_SEARCHALL_QUERY));
+	if (!findWhat.empty()) {
+		SearchAllDoSearch();
+	}
+}
+
+void SciTEWin::SetupSearchAllList(HWND hDlg) {
+	HWND list = ::GetDlgItem(hDlg, IDC_SEARCHALL_LIST);
+	if (!list) {
+		return;
+	}
+	ListView_SetExtendedListViewStyle(list,
+		LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_GRIDLINES);
+
+	while (ListView_DeleteColumn(list, 0)) {
+	}
+
+	RECT rcList {};
+	::GetClientRect(list, &rcList);
+	const int lineWidth = MapDialogUnitsX(hDlg, 56);
+	const int columnWidth = MapDialogUnitsX(hDlg, 56);
+	const int textWidth = std::max(120, static_cast<int>(rcList.right) - lineWidth - columnWidth - 4);
+
+	struct Column {
+		const char *key;
+		int width;
+		int format;
+	};
+	const Column columns[] = {
+		{"Line", lineWidth, LVCFMT_RIGHT},
+		{"Column", columnWidth, LVCFMT_RIGHT},
+		{"Match", textWidth, LVCFMT_LEFT},
+	};
+
+	for (int i = 0; i < static_cast<int>(std::size(columns)); i++) {
+		LVCOLUMNW column {};
+		column.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM | LVCF_FMT;
+		column.fmt = columns[i].format;
+		column.cx = columns[i].width;
+		column.iSubItem = i;
+		const GUI::gui_string header = localiser.Text(columns[i].key);
+		column.pszText = const_cast<wchar_t *>(header.c_str());
+		ListView_InsertColumn(list, i, &column);
+	}
+}
+
+void SciTEWin::LayoutSearchAll(HWND hDlg) {
+	RECT rcClient {};
+	::GetClientRect(hDlg, &rcClient);
+
+	const int width = static_cast<int>(rcClient.right);
+	const int height = static_cast<int>(rcClient.bottom);
+	const int marginX = MapDialogUnitsX(hDlg, 7);
+	const int marginY = MapDialogUnitsY(hDlg, 5);
+	const int buttonWidth = MapDialogUnitsX(hDlg, 50);
+	const int buttonHeight = MapDialogUnitsY(hDlg, 15);
+	const int searchX = width - marginX - buttonWidth;
+
+	auto place = [hDlg](int id, int x, int y, int w, int h) {
+		HWND item = ::GetDlgItem(hDlg, id);
+		if (item) {
+			::SetWindowPos(item, nullptr, x, y, std::max(1, w), std::max(1, h),
+				SWP_NOZORDER | SWP_NOACTIVATE);
+		}
+	};
+
+	const int queryX = MapDialogUnitsX(hDlg, 52);
+	const int queryY = marginY;
+	const int gap = MapDialogUnitsX(hDlg, 7);
+	const int queryWidth = std::max(80, searchX - gap - queryX);
+	place(IDC_SEARCHALL_QUERY, queryX, queryY, queryWidth, MapDialogUnitsY(hDlg, 13));
+	place(IDC_SEARCHALL_GO, searchX, marginY, buttonWidth, buttonHeight);
+
+	const int closeY = height - MapDialogUnitsY(hDlg, 19);
+	const int listX = marginX;
+	const int listY = MapDialogUnitsY(hDlg, 42);
+	const int listWidth = width - 2 * marginX;
+	const int listHeight = std::max(40, closeY - MapDialogUnitsY(hDlg, 4) - listY);
+	place(IDC_SEARCHALL_LIST, listX, listY, listWidth, listHeight);
+	place(IDC_SEARCHALL_STATUS, marginX, closeY + MapDialogUnitsY(hDlg, 1),
+		std::max(60, width - marginX - buttonWidth - 2 * marginX),
+		MapDialogUnitsY(hDlg, 10));
+	place(IDCANCEL, width - marginX - buttonWidth, closeY, buttonWidth, buttonHeight);
+
+	HWND list = ::GetDlgItem(hDlg, IDC_SEARCHALL_LIST);
+	if (list && Header_GetItemCount(ListView_GetHeader(list)) >= 3) {
+		const int lineWidth = MapDialogUnitsX(hDlg, 56);
+		const int columnWidth = MapDialogUnitsX(hDlg, 56);
+		ListView_SetColumnWidth(list, 0, lineWidth);
+		ListView_SetColumnWidth(list, 1, columnWidth);
+		ListView_SetColumnWidth(list, 2,
+			std::max(80, listWidth - lineWidth - columnWidth - 4));
+	}
+}
+
+void SciTEWin::SearchAllDoSearch() {
+	HWND hDlg = HwndOf(wSearchAll);
+	if (!hDlg) {
+		return;
+	}
+	HWND list = ::GetDlgItem(hDlg, IDC_SEARCHALL_LIST);
+	Dialog dlg(hDlg);
+
+	const std::string query = dlg.ItemTextU(IDC_SEARCHALL_QUERY);
+	searchAllMatches.clear();
+	searchAllStale = false;
+	if (list) {
+		ListView_DeleteAllItems(list);
+	}
+
+	if (query.empty()) {
+		::SetDlgItemTextW(hDlg, IDC_SEARCHALL_STATUS,
+			localiser.Text("Enter text to search").c_str());
+		return;
+	}
+
+	wholeWord = dlg.Checked(IDC_SEARCHALL_WHOLEWORD);
+	matchCase = dlg.Checked(IDC_SEARCHALL_MATCHCASE);
+	regExp = dlg.Checked(IDC_SEARCHALL_REGEXP);
+	SetFind(query);
+
+	wEditor.SetSearchFlags(SearchFlags(regExp));
+
+	std::string searchTarget = EncodeString(query);
+	if (unSlash) {
+		searchTarget = regExp ? UnSlashLowOctalString(searchTarget) : UnSlashString(searchTarget);
+	}
+
+	const SA::Position documentLength = wEditor.Length();
+	searchAllDocument = wEditor.DocPointer();
+	searchAllDocumentLength = documentLength;
+	SA::Position searchStart = 0;
+	SA::Line lastMatchLine = -1;
+	constexpr std::size_t maxMatches = 10000;
+	bool truncated = false;
+
+	if (list) {
+		::SendMessageW(list, WM_SETREDRAW, FALSE, 0);
+	}
+
+	while (searchStart <= documentLength) {
+		wEditor.SetTargetStart(searchStart);
+		wEditor.SetTargetEnd(documentLength);
+		const SA::Position found = wEditor.SearchInTarget(searchTarget);
+		if (found < 0) {
+			break;
+		}
+		const SA::Position end = wEditor.TargetEnd();
+		if (end <= found) {
+			if (found >= documentLength) {
+				break;
+			}
+			const SA::Position next = wEditor.PositionAfter(found);
+			if (next <= found) {
+				break;
+			}
+			searchStart = next;
+			continue;
+		}
+
+		const SA::Line line = wEditor.LineFromPosition(found);
+		if (line != lastMatchLine) {
+			if (searchAllMatches.size() >= maxMatches) {
+				truncated = true;
+				break;
+			}
+			lastMatchLine = line;
+
+			if (list) {
+				const std::wstring lineNumber = std::to_wstring(static_cast<long long>(line) + 1);
+				const std::wstring columnNumber = std::to_wstring(
+					static_cast<long long>(wEditor.Column(found)) + 1);
+				const std::wstring display = SearchAllDisplayText(GetLine(wEditor, line));
+
+				LVITEMW item {};
+				item.mask = LVIF_TEXT;
+				item.iItem = static_cast<int>(searchAllMatches.size());
+				item.iSubItem = 0;
+				item.pszText = const_cast<wchar_t *>(lineNumber.c_str());
+				const int index = ListView_InsertItem(list, &item);
+				if (index >= 0) {
+					ListView_SetItemText(list, index, 1,
+						const_cast<wchar_t *>(columnNumber.c_str()));
+					ListView_SetItemText(list, index, 2,
+						const_cast<wchar_t *>(display.c_str()));
+				}
+			}
+
+			searchAllMatches.push_back({found, end});
+		}
+
+		searchStart = end;
+	}
+
+	if (list) {
+		::SendMessageW(list, WM_SETREDRAW, TRUE, 0);
+		::InvalidateRect(list, nullptr, TRUE);
+	}
+
+	const GUI::gui_string countText = GUI::StringFromInteger(
+		static_cast<long>(searchAllMatches.size()));
+	GUI::gui_string status = LocaliseMessage(
+		searchAllMatches.empty() ? "No matching lines" : "^0 matching lines", countText);
+	if (truncated) {
+		status += GUI_TEXT(" ");
+		status += localiser.Text("Showing the first results only");
+	}
+	::SetDlgItemTextW(hDlg, IDC_SEARCHALL_STATUS, status.c_str());
+}
+
+void SciTEWin::SearchAllJump(int index) {
+	if (index < 0) {
+		return;
+	}
+	if (searchAllStale ||
+		(wEditor.DocPointer() != searchAllDocument) ||
+		(wEditor.Length() != searchAllDocumentLength)) {
+		SearchAllDoSearch();
+	}
+	if (index >= static_cast<int>(searchAllMatches.size())) {
+		return;
+	}
+
+	if (csvDataVisible) {
+		csvDataVisible = false;
+		if (wCsvTabs.Created()) {
+			TabCtrl_SetCurSel(HwndOf(wCsvTabs), 0);
+		}
+		UpdateCsvPanel(false);
+		SizeSubWindows();
+	}
+
+	const SA::Position length = wEditor.Length();
+	const SearchAllMatch &match = searchAllMatches[index];
+	const SA::Position start = std::clamp<SA::Position>(match.start, 0, length);
+	const SA::Position end = std::clamp<SA::Position>(match.end, start, length);
+	wEditor.SetSel(start, end);
+	wEditor.ScrollCaret();
+	WindowSetFocus(wEditor);
+}
+
+BOOL SciTEWin::SearchAllMessage(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
+	Dialog dlg(hDlg);
+
+	switch (message) {
+	case WM_INITDIALOG:
+		LocaliseDialog(hDlg);
+		dlg.SetCheck(IDC_SEARCHALL_WHOLEWORD, wholeWord);
+		dlg.SetCheck(IDC_SEARCHALL_MATCHCASE, matchCase);
+		dlg.SetCheck(IDC_SEARCHALL_REGEXP, regExp);
+		dlg.SetItemTextU(IDC_SEARCHALL_QUERY, findWhat);
+		SetupSearchAllList(hDlg);
+		LayoutSearchAll(hDlg);
+		::SetDlgItemTextW(hDlg, IDC_SEARCHALL_STATUS,
+			localiser.Text("Enter text to search").c_str());
+		::SendDlgItemMessageW(hDlg, IDC_SEARCHALL_QUERY, EM_SETSEL, 0, -1);
+		::SetFocus(::GetDlgItem(hDlg, IDC_SEARCHALL_QUERY));
+		return FALSE;
+
+	case WM_SIZE:
+		LayoutSearchAll(hDlg);
+		return TRUE;
+
+	case WM_CLOSE:
+		wSearchAll.Destroy();
+		WindowSetFocus(wEditor);
+		return TRUE;
+
+	case WM_COMMAND:
+		switch (ControlIDOfWParam(wParam)) {
+		case IDCANCEL:
+			wSearchAll.Destroy();
+			WindowSetFocus(wEditor);
+			return FALSE;
+		case IDC_SEARCHALL_GO:
+			SearchAllDoSearch();
+			return TRUE;
+		case IDC_SEARCHALL_WHOLEWORD:
+		case IDC_SEARCHALL_MATCHCASE:
+		case IDC_SEARCHALL_REGEXP:
+			if (HIWORD(wParam) == BN_CLICKED && !dlg.ItemTextU(IDC_SEARCHALL_QUERY).empty()) {
+				SearchAllDoSearch();
+			}
+			return TRUE;
+		default:
+			break;
+		}
+		return FALSE;
+
+	case WM_NOTIFY: {
+		const NMHDR *notification = reinterpret_cast<const NMHDR *>(lParam);
+		if (notification && notification->idFrom == IDC_SEARCHALL_LIST) {
+			if (notification->code == LVN_ITEMCHANGED) {
+				const NMLISTVIEW *change = reinterpret_cast<const NMLISTVIEW *>(lParam);
+				if (change && (change->uChanged & LVIF_STATE) &&
+					(change->uNewState & LVIS_SELECTED) &&
+					!(change->uOldState & LVIS_SELECTED)) {
+					SearchAllJump(change->iItem);
+				}
+				return TRUE;
+			}
+			if (notification->code == NM_CLICK) {
+				HWND list = ::GetDlgItem(hDlg, IDC_SEARCHALL_LIST);
+				const int selected = ListView_GetNextItem(list, -1, LVNI_SELECTED);
+				if (selected >= 0) {
+					SearchAllJump(selected);
+				}
+				return TRUE;
+			}
+		}
+		return FALSE;
+	}
+
+	default:
+		break;
+	}
+
+	return FALSE;
+}
+
+INT_PTR CALLBACK SciTEWin::SearchAllDlg(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
+	return Caller(hDlg, message, lParam)->SearchAllMessage(hDlg, message, wParam, lParam);
 }
 
 BOOL SciTEWin::HandleReplaceCommand(int cmd, bool reverseDirection) {

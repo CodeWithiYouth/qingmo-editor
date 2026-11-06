@@ -818,6 +818,10 @@ void SciTEWin::Command(WPARAM wParam, LPARAM lParam) {
 		uniqueInstance.ToggleOpenFilesHere();
 		break;
 
+	case IDM_SEARCHALL:
+		ShowSearchAll();
+		break;
+
 	case IDM_FULLSCREEN:
 		FullScreenToggle();
 		break;

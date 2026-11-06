@@ -497,6 +497,14 @@ void SciTEWin::Notify(SCNotification *notification) {
 		SciTEBase::Notify(notification);
 		if (notification->nmhdr.idFrom == IDM_SRCWIN) {
 			csvDirty = true;
+			if (wSearchAll.Created()) {
+				const SA::ModificationFlags modificationType =
+					static_cast<SA::ModificationFlags>(notification->modificationType);
+				if (FlagIsSet(modificationType, SA::ModificationFlags::InsertText) ||
+					FlagIsSet(modificationType, SA::ModificationFlags::DeleteText)) {
+					searchAllStale = true;
+				}
+			}
 		}
 		break;
 
@@ -1309,7 +1317,7 @@ void SciTEWin::Creation() {
 
 	INITCOMMONCONTROLSEX icce {};
 	icce.dwSize = sizeof(icce);
-	icce.dwICC = ICC_TAB_CLASSES;
+	icce.dwICC = ICC_TAB_CLASSES | ICC_LISTVIEW_CLASSES;
 	InitCommonControlsEx(&icce);
 
 	constexpr const wchar_t *tabClassName = L"SciteTabCtrl";

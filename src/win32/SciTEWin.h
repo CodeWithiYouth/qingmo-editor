@@ -159,6 +159,16 @@ protected:
 	GUI::Window wFindReplace;
 	GUI::Window wParameters;
 
+	struct SearchAllMatch {
+		SA::Position start;
+		SA::Position end;
+	};
+	GUI::Window wSearchAll;
+	std::vector<SearchAllMatch> searchAllMatches;
+	SA::IDocumentEditable *searchAllDocument = nullptr;
+	SA::Position searchAllDocumentLength = 0;
+	bool searchAllStale = false;
+
 	ContentWin contents;
 	BackgroundStrip backgroundStrip;
 	UserStrip userStrip;
@@ -288,6 +298,13 @@ protected:
 	void ShowBackgroundProgress(const GUI::gui_string &explanation, size_t size, size_t progress) override;
 	BOOL FindMessage(HWND hDlg, UINT message, WPARAM wParam);
 	static INT_PTR CALLBACK FindDlg(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+	void ShowSearchAll();
+	void SearchAllDoSearch();
+	void SearchAllJump(int index);
+	BOOL SearchAllMessage(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+	static INT_PTR CALLBACK SearchAllDlg(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+	void LayoutSearchAll(HWND hDlg);
+	void SetupSearchAllList(HWND hDlg);
 	BOOL ReplaceMessage(HWND hDlg, UINT message, WPARAM wParam);
 	static INT_PTR CALLBACK ReplaceDlg(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 	void UIClosed() override;
