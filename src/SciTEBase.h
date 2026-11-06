@@ -541,6 +541,7 @@ protected:
 	void MoveTabLeft();
 
 	virtual void ReadEmbeddedProperties();
+	virtual void ReadEmbeddedLocalization();
 	void ReadEnvironment();
 	void ReadGlobalPropFile();
 	void ReadAbbrevPropFile();

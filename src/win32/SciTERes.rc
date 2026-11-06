@@ -637,6 +637,8 @@ IDBM_32_CONTEXT BITMAP "context32.bmp"
 #ifdef STATIC_BUILD
 // QingMo keeps every property file in config/ instead of next to the sources.
 Embedded Properties "../../config/Embedded.properties"
+// Fallback UI translation used when running the standalone executable.
+LocaleZh Properties "../../config/locale.zh.properties"
 #endif
 IDC_DRAGDROP       CURSOR  DISCARDABLE     "DragDrop.cur"
 

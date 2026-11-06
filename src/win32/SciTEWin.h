@@ -192,6 +192,7 @@ protected:
 	bool SetScaleFactor(int scale);
 
 	void ReadEmbeddedProperties() override;
+	void ReadEmbeddedLocalization() override;
 	void ReadPropertiesInitial() override;
 	void ReadProperties() override;
 

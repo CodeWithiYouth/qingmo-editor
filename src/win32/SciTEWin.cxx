@@ -541,6 +541,24 @@ void SciTEWin::ReadEmbeddedProperties() {
 	}
 }
 
+// Fall back to the embedded Simplified Chinese translation when no locale file
+// is available next to the executable (the standalone single-file build).
+void SciTEWin::ReadEmbeddedLocalization() {
+	HRSRC handLocale = ::FindResourceW(hInstance, L"LocaleZh", L"Properties");
+	if (handLocale) {
+		const DWORD size = ::SizeofResource(hInstance, handLocale);
+		HGLOBAL hmem = ::LoadResource(hInstance, handLocale);
+		if (hmem) {
+			const void *pv = ::LockResource(hmem);
+			if (pv) {
+				localiser.ReadFromMemory(std::string_view(static_cast<const char *>(pv), size),
+					FilePath(), filter, nullptr, 0);
+			}
+		}
+		::FreeResource(handLocale);
+	}
+}
+
 SystemAppearance SciTEWin::WindowsAppearance() noexcept {
 	SystemAppearance currentAppearance{};
 

@@ -114,6 +114,10 @@ void SciTEBase::SetLanguageMenu() {
 void SciTEBase::ReadEmbeddedProperties() {
 }
 
+// Null except on Windows where it may be overridden
+void SciTEBase::ReadEmbeddedLocalization() {
+}
+
 const GUI::gui_char propLocalFileName[] = GUI_TEXT("SciTE.properties");
 const GUI::gui_char propDirectoryFileName[] = GUI_TEXT("SciTEDirectory.properties");
 
@@ -1896,7 +1900,9 @@ void SciTEBase::ReadLocalization() {
 	}
 	FilePath propdir = GetSciteDefaultHome();
 	FilePath localePath(propdir, title);
-	localiser.Read(localePath, propdir, filter, &importFiles, 0);
+	if (!localiser.Read(localePath, propdir, filter, &importFiles, 0)) {
+		ReadEmbeddedLocalization();
+	}
 	localiser.SetMissing(props.GetString("translation.missing"));
 	localiser.read = true;
 }

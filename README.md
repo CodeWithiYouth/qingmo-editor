@@ -188,7 +188,7 @@ ctest --test-dir build -C Release --output-on-failure
   - `QingMo-v0.1.0-win64.exe`：可直接下载运行的 exe
   - `QingMo-v0.1.0-win64.zip`：完整便携包，含配置、LICENSE、第三方声明和 `licenses/`
 
-> 单 exe 适合快速试跑；需要完整语言配置和许可证文件时请下载 zip。
+> 单 exe 已内置中文界面和默认配置，可直接试跑；需要许可证文件和第三方声明时请下载 zip。
 
 ## 标签页
 
